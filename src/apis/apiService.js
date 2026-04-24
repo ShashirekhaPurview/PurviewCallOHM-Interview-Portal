@@ -101,3 +101,15 @@ export async function endSession(applicationId, reason) {
     body: JSON.stringify({ reason }),
   })
 }
+
+/**
+ * Flags the application as Round 2 violated when the session is terminated.
+ * POST /recruitment/agents/round2/violate/{applicationId}
+ *
+ * @param {string} applicationId
+ */
+export async function reportTermination(applicationId) {
+  return request(`${BACKEND_URL}/recruitment/agents/round2/violate/${applicationId}`, {
+    method: 'POST',
+  })
+}

@@ -281,13 +281,13 @@ export default function Instructions({ sessionData, onStart }) {
               </div>
               <span className="text-sm font-semibold text-green-600 hidden sm:inline">Verified</span>
             </div>
-            <div className="flex-1 h-0.5 mx-3 bg-green-400 min-w-[28px] max-w-[80px]" />
+            <div className="flex-1 h-0.5 mx-3 bg-green-400 min-w-4 max-w-5" />
             <div className="flex items-center gap-2 flex-shrink-0">
               <div className="w-7 h-7 rounded-full bg-navy-800 flex items-center
                               justify-center text-white text-xs font-bold">2</div>
               <span className="text-sm font-semibold text-navy-800 hidden sm:inline">Instructions</span>
             </div>
-            <div className="flex-1 h-0.5 mx-3 bg-slate-200 min-w-[28px] max-w-[80px]" />
+            <div className="flex-1 h-0.5 mx-3 bg-slate-200 min-w-4 max-w-5" />
             <div className="flex items-center gap-2 flex-shrink-0">
               <div className="w-7 h-7 rounded-full bg-slate-100 border-2 border-slate-200
                               flex items-center justify-center text-slate-400 text-xs font-bold">3</div>
