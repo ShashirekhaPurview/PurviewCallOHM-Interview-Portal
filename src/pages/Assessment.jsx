@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useConversation } from '@elevenlabs/react'
 import {
-  Maximize2, Minimize2, AlertTriangle, ShieldX,
+  Maximize2, Minimize2, AlertTriangle, ShieldX, MonitorX,
   Clock, Wifi, XCircle, ChevronRight, Loader2,
   Bot, Volume2, CheckCircle2, VideoOff,
 } from 'lucide-react'
@@ -166,10 +166,9 @@ export default function Assessment({ sessionData }) {
   const [agentLoaded, setAgentLoaded]     = useState(false)
   const [previewError, setPreviewError]   = useState('')
   const [cameraError, setCameraError]     = useState(false)
-  const [devToolsOpen, setDevToolsOpen]   = useState(false)
-  const [fullscreenGate, setFullscreenGate] = useState(
-    () => !(document.fullscreenElement || document.webkitFullscreenElement)
-  )
+  const [devToolsOpen, setDevToolsOpen]         = useState(false)
+  const [extraScreenDetected, setExtraScreen]   = useState(false)
+  const [monitoringActive, setMonitoringActive] = useState(false)
 
   const containerRef        = useRef(null)
   const toastTimerRef       = useRef(null)
@@ -298,27 +297,27 @@ export default function Assessment({ sessionData }) {
   }, [])
 
   useEffect(() => {
-    const h = () => { if (document.hidden && agentLoaded && !terminated && !sessionEnded) raiseViolation('tab_switch', 'You switched away from this tab. Return to this window immediately — leaving this tab is a violation and may close your interview.') }
+    const h = () => { if (document.hidden && monitoringActive && !terminated && !sessionEnded) raiseViolation('tab_switch', 'You switched away from this tab. Return to this window immediately — leaving this tab is a violation and may close your interview.') }
     document.addEventListener('visibilitychange', h)
     return () => document.removeEventListener('visibilitychange', h)
-  }, [raiseViolation, agentLoaded, sessionEnded, terminated])
+  }, [raiseViolation, monitoringActive, sessionEnded, terminated])
 
   useEffect(() => {
-    const h = () => { if (agentLoaded && !terminated && !sessionEnded) raiseViolation('focus_loss', 'You moved away from this window. Return to the interview immediately — switching to another window or screen is a violation and may close your interview.') }
+    const h = () => { if (monitoringActive && !terminated && !sessionEnded) raiseViolation('focus_loss', 'You moved away from this window. Return to the interview immediately — switching to another window or screen is a violation and may close your interview.') }
     window.addEventListener('blur', h)
     return () => window.removeEventListener('blur', h)
-  }, [raiseViolation, agentLoaded, sessionEnded, terminated])
+  }, [raiseViolation, monitoringActive, sessionEnded, terminated])
 
   // Poll document.hasFocus() to catch multi-monitor window switches that don't always fire blur
   useEffect(() => {
-    if (!agentLoaded || terminated || sessionEnded) return
+    if (!monitoringActive || terminated || sessionEnded) return
     const id = setInterval(() => {
-      if (!document.hasFocus() && agentLoaded && !terminated && !sessionEnded) {
+      if (!document.hasFocus() && !terminated && !sessionEnded) {
         raiseViolation('focus_loss', 'You moved away from this window. Return to the interview immediately — switching to another window or screen is a violation and may close your interview.')
       }
     }, 1000)
     return () => clearInterval(id)
-  }, [raiseViolation, agentLoaded, terminated, sessionEnded])
+  }, [raiseViolation, monitoringActive, terminated, sessionEnded])
 
   useEffect(() => {
     const h = () => {
@@ -369,20 +368,58 @@ export default function Assessment({ sessionData }) {
   }, [raiseViolation, terminated, sessionEnded])
 
   useEffect(() => {
-    // If arriving from Instructions already in fullscreen, skip gate and start immediately
-    const alreadyFS = !!(document.fullscreenElement || document.webkitFullscreenElement)
-    if (alreadyFS) {
-      setFullscreenGate(false)
-      startPreviewSession()
+    // Fullscreen is already enforced on the Instructions page — start session directly.
+    // If fullscreen was somehow lost in transit the reminder strip + violation handles it.
+    startPreviewSession()
+    // Activate focus/window-switch monitoring after a short grace period to avoid
+    // false positives from the browser's own focus handoff during page navigation.
+    const monitorTimer = setTimeout(() => setMonitoringActive(true), 4000)
+    return () => {
+      clearTimeout(monitorTimer)
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+      stopPreviewSession()
     }
-    return () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); stopPreviewSession() }
   }, [])
 
-  const handleEnterFullscreen = useCallback(async () => {
-    try { await containerRef.current?.requestFullscreen() } catch { /* user or browser denied */ }
-    setFullscreenGate(false)
-    await startPreviewSession()
-  }, [startPreviewSession])
+  // ── Extra screen detection during assessment ────────────────────────────────
+  useEffect(() => {
+    const screenDetailsRef = { current: null }
+
+    const onScreenChange = () => {
+      const isExtended = !!(window.screen?.isExtended)
+      setExtraScreen(isExtended)
+      if (isExtended && monitoringActive && !terminated && !sessionEnded) {
+        raiseViolation('multi_screen', 'A second screen was detected. Please disconnect it immediately — using multiple screens is a violation and will close your interview.')
+      }
+    }
+
+    // Method 1: screen.isExtended + change event
+    if (typeof window.screen?.isExtended === 'boolean') {
+      onScreenChange()
+      window.screen.addEventListener('change', onScreenChange)
+    }
+
+    // Method 2: getScreenDetails — works without gesture if permission was already granted
+    if (typeof window.getScreenDetails === 'function') {
+      window.getScreenDetails().then(details => {
+        screenDetailsRef.current = details
+        const onScreensChange = () => {
+          const hasMultiple = details.screens.length > 1
+          setExtraScreen(hasMultiple)
+          if (hasMultiple && monitoringActive && !terminated && !sessionEnded) {
+            raiseViolation('multi_screen', 'A second screen was detected. Please disconnect it immediately — using multiple screens is a violation and will close your interview.')
+          }
+        }
+        onScreensChange()
+        details.addEventListener('screenschange', onScreensChange)
+      }).catch(() => {})
+    }
+
+    return () => {
+      window.screen?.removeEventListener('change', onScreenChange)
+      screenDetailsRef.current?.removeEventListener('screenschange', onScreenChange)
+    }
+  }, [monitoringActive, raiseViolation, terminated, sessionEnded])
 
   useEffect(() => {
     if (!terminated) return
@@ -495,28 +532,24 @@ export default function Assessment({ sessionData }) {
     <div ref={containerRef} className="flex flex-col bg-black text-white"
          style={{ height: '100vh', overflow: 'hidden' }}>
 
-      {/* ── Fullscreen Gate — blocks entry until user explicitly enters fullscreen ── */}
-      {fullscreenGate && (
-        <div className="fixed inset-0 bg-[#020817] z-[9999] flex flex-col items-center justify-center gap-6 p-8">
-          <div className="w-16 h-16 rounded-2xl bg-blue-500/20 flex items-center justify-center">
-            <Maximize2 size={32} className="text-blue-400" />
+      {/* ── Extra Screen Blocking Overlay ─────────────────────────────────────── */}
+      {extraScreenDetected && !terminated && !sessionEnded && (
+        <div className="fixed inset-0 bg-black z-[9998] flex flex-col items-center justify-center gap-5 p-8">
+          <div className="w-16 h-16 rounded-2xl bg-red-500/20 flex items-center justify-center">
+            <MonitorX size={32} className="text-red-400" />
           </div>
           <div className="text-center max-w-sm">
-            <h2 className="text-white text-xl font-extrabold mb-2 tracking-tight">Fullscreen Required</h2>
-            <p className="text-white/60 text-sm leading-relaxed">
-              Your interview must be conducted in fullscreen mode. Click below to enter fullscreen and begin.
-              Exiting fullscreen at any point will be recorded as a violation.
+            <h2 className="text-white text-xl font-extrabold mb-2 tracking-tight">Second Screen Detected</h2>
+            <p className="text-white/55 text-sm leading-relaxed">
+              An external monitor or duplicate display is connected. Please disconnect it immediately.
+              The interview is paused until only one screen is in use.
             </p>
           </div>
-          <button onClick={handleEnterFullscreen}
-            className="flex items-center gap-2 px-8 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500
-                       text-white font-semibold text-sm transition-all shadow-lg hover:shadow-blue-500/30">
-            <Maximize2 size={18} />
-            Enter Fullscreen &amp; Start Interview
-          </button>
-          <p className="text-white/30 text-xs text-center max-w-xs">
-            Switching to another window or monitor during the interview will also be flagged.
-          </p>
+          <div className="flex items-center gap-2 bg-red-500/15 border border-red-400/30
+                          rounded-xl px-4 py-2.5 text-red-300 text-xs font-semibold">
+            <AlertTriangle size={14} />
+            This violation has been recorded. Disconnect the screen to continue.
+          </div>
         </div>
       )}
 

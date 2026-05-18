@@ -216,9 +216,59 @@ export default function Instructions({ sessionData, onStart }) {
   }, [])
 
   // ── Multi-screen detection ─────────────────────────────────────────────────
+  const screenDetailsRef = useRef(null)
+
+  // On mount: only use isExtended (no user gesture needed).
+  // If unavailable, set 'needs-check' so the card shows a button.
   useEffect(() => {
     const isExtended = window.screen?.isExtended
-    setMultiScreen(typeof isExtended === 'boolean' ? isExtended : null)
+    if (typeof isExtended === 'boolean') {
+      setMultiScreen(isExtended)
+      const onChange = () => setMultiScreen(!!window.screen.isExtended)
+      window.screen.addEventListener?.('change', onChange)
+      return () => window.screen.removeEventListener?.('change', onChange)
+    }
+    // getScreenDetails exists but requires a user gesture — show button
+    if (typeof window.getScreenDetails === 'function') {
+      setMultiScreen('needs-check')
+    } else {
+      setMultiScreen(null)
+    }
+  }, [])
+
+  // Called on button click (user gesture) — can trigger permission prompt
+  const runScreenCheck = useCallback(async () => {
+    setMultiScreen('checking')
+
+    // isExtended may have become available or changed
+    if (typeof window.screen?.isExtended === 'boolean') {
+      setMultiScreen(window.screen.isExtended)
+      return
+    }
+
+    // getScreenDetails — MUST be called from user gesture; shows permission dialog
+    if (typeof window.getScreenDetails === 'function') {
+      try {
+        const details = await window.getScreenDetails()
+        screenDetailsRef.current = details
+        setMultiScreen(details.screens.length > 1)
+        // Listen for monitor plug/unplug while page is open
+        details.addEventListener('screenschange', () => {
+          setMultiScreen(details.screens.length > 1)
+        })
+        return
+      } catch { /* user denied permission */ }
+    }
+
+    // Position heuristic: window is on a non-primary monitor
+    const sl = window.screenLeft ?? window.screenX ?? 0
+    const st = window.screenTop  ?? window.screenY ?? 0
+    if (sl < 0 || sl >= window.screen.width || st < 0 || st >= window.screen.height) {
+      setMultiScreen(true)
+      return
+    }
+
+    setMultiScreen(null) // genuinely cannot detect
   }, [])
 
   // ── Track fullscreen state live ────────────────────────────────────────────
@@ -276,7 +326,10 @@ export default function Instructions({ sessionData, onStart }) {
     cameraStatus === 'granted' &&
     micStatus === 'granted' &&
     fullscreenStatus === 'granted' &&
-    (multiScreen !== true || multiScreenAcknowledged)
+    multiScreen !== true &&          // hard block — must disconnect second screen
+    multiScreen !== 'checking' &&
+    multiScreen !== 'needs-check' && // must click the Verify button first
+    (multiScreen === false || multiScreenAcknowledged) // null requires confirm
 
   const canStart = allChecksPass && agreed && !starting
 
@@ -372,6 +425,7 @@ export default function Instructions({ sessionData, onStart }) {
               detected={multiScreen}
               acknowledged={multiScreenAcknowledged}
               onAcknowledge={() => setMultiScreenAcknowledged(true)}
+              onRecheck={runScreenCheck}
             />
           </div>
 
@@ -525,58 +579,98 @@ function FullscreenCard({ status, onRequest }) {
 }
 
 /* ─── Multi-Screen Card ──────────────────────────────────────────────────── */
-function MultiScreenCard({ detected, acknowledged, onAcknowledge }) {
-  // detected: null (API unavailable) | false (single screen) | true (multiple screens)
-  if (detected === false) {
+function MultiScreenCard({ detected, acknowledged, onAcknowledge, onRecheck }) {
+  // detected: 'checking' | null (API unavailable) | false (single screen) | true (multiple screens)
+
+  if (detected === 'checking') {
     return (
-      <div className="flex items-center gap-3 p-4 rounded-xl border border-green-200 bg-green-50">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-green-100 text-green-600 flex-shrink-0">
-          <Monitor size={20} />
+      <div className="flex items-center gap-3 p-4 rounded-xl border border-blue-200 bg-blue-50">
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-blue-100 text-blue-600 flex-shrink-0">
+          <Loader2 size={20} className="animate-spin" />
         </div>
         <div>
           <p className="text-sm font-semibold text-slate-800">Screen Check</p>
-          <div className="flex items-center gap-1 text-xs font-medium text-green-600">
-            <CheckCircle2 size={12} /> Single screen detected
+          <p className="text-xs font-medium text-blue-600">Checking for multiple screens…</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (detected === 'needs-check') {
+    return (
+      <div className="p-4 rounded-xl border border-amber-200 bg-amber-50 space-y-2.5">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-amber-100 text-amber-600 flex-shrink-0">
+            <MonitorX size={20} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-slate-800">Screen Check Required</p>
+            <p className="text-xs font-medium text-amber-700 leading-snug mt-0.5">
+              Click below to verify how many screens are connected. Your browser will ask for permission.
+            </p>
           </div>
         </div>
+        <button onClick={onRecheck}
+          className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold
+                     bg-amber-500 hover:bg-amber-600 text-white transition-colors">
+          <Monitor size={12} /> Verify Screen Setup
+        </button>
+      </div>
+    )
+  }
+
+  if (detected === false) {
+    return (
+      <div className="flex items-center justify-between p-4 rounded-xl border border-green-200 bg-green-50">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-green-100 text-green-600 flex-shrink-0">
+            <Monitor size={20} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-slate-800">Screen Check</p>
+            <div className="flex items-center gap-1 text-xs font-medium text-green-600">
+              <CheckCircle2 size={12} /> Single screen detected
+            </div>
+          </div>
+        </div>
+        <button onClick={onRecheck} title="Re-check"
+          className="w-7 h-7 rounded-lg bg-white/70 hover:bg-white border border-slate-200
+                     flex items-center justify-center text-slate-500 hover:text-slate-700 transition-colors">
+          <RotateCcw size={13} />
+        </button>
       </div>
     )
   }
 
   if (detected === true) {
+    // Hard block — cannot acknowledge and proceed; must disconnect and recheck
     return (
-      <div className={`flex items-center justify-between p-4 rounded-xl border transition-all duration-200
-                       ${acknowledged ? 'border-amber-200 bg-amber-50' : 'border-red-200 bg-red-50'}`}>
+      <div className="p-4 rounded-xl border border-red-300 bg-red-50 space-y-2.5">
         <div className="flex items-center gap-3">
-          <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0
-                           ${acknowledged ? 'bg-amber-100 text-amber-600' : 'bg-red-100 text-red-600'}`}>
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-red-100 text-red-600 flex-shrink-0">
             <MonitorX size={20} />
           </div>
           <div>
             <p className="text-sm font-semibold text-slate-800">Multiple Screens Detected</p>
-            <p className={`text-xs font-medium leading-snug mt-0.5 ${acknowledged ? 'text-amber-700' : 'text-red-600'}`}>
-              {acknowledged
-                ? 'Acknowledged — use only this screen'
-                : 'Please close or disconnect your second screen before starting.'}
+            <p className="text-xs font-medium text-red-600 leading-snug mt-0.5">
+              A second screen is connected. Please disconnect or turn it off before continuing.
             </p>
           </div>
         </div>
-        {!acknowledged && (
-          <button onClick={onAcknowledge}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0 ml-2
-                       bg-red-600 hover:bg-red-700 text-white transition-colors duration-150">
-            Acknowledge
-          </button>
-        )}
+        <button onClick={onRecheck}
+          className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold
+                     bg-red-600 hover:bg-red-700 text-white transition-colors">
+          <RotateCcw size={12} /> Disconnect 2nd screen, then Recheck
+        </button>
       </div>
     )
   }
 
-  // null — API not available, show a soft advisory
+  // null — browser doesn't support detection; require manual confirmation
   return (
-    <div className={`flex items-center justify-between p-4 rounded-xl border transition-all duration-200
+    <div className={`p-4 rounded-xl border transition-all duration-200
                      ${acknowledged ? 'border-slate-200 bg-white' : 'border-amber-200 bg-amber-50'}`}>
-      <div className="flex items-center gap-3">
+      <div className="flex items-start gap-3 mb-2.5">
         <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0
                          ${acknowledged ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-600'}`}>
           <Monitor size={20} />
@@ -584,16 +678,25 @@ function MultiScreenCard({ detected, acknowledged, onAcknowledge }) {
         <div>
           <p className="text-sm font-semibold text-slate-800">Screen Check</p>
           <p className={`text-xs font-medium leading-snug mt-0.5 ${acknowledged ? 'text-slate-500' : 'text-amber-700'}`}>
-            {acknowledged ? 'Confirmed — using one screen only' : 'Please ensure only one screen is in use.'}
+            {acknowledged
+              ? 'Confirmed — proceeding with single screen only'
+              : 'Could not detect screen count automatically. Confirm you are on a single screen.'}
           </p>
         </div>
       </div>
       {!acknowledged && (
-        <button onClick={onAcknowledge}
-          className="px-3 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0 ml-2
-                     bg-amber-500 hover:bg-amber-600 text-white transition-colors duration-150">
-          Confirm
-        </button>
+        <div className="flex gap-2">
+          <button onClick={onRecheck}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold
+                       bg-white border border-amber-300 text-amber-700 hover:bg-amber-50 transition-colors">
+            <RotateCcw size={11} /> Recheck
+          </button>
+          <button onClick={onAcknowledge}
+            className="flex-1 py-1.5 rounded-lg text-xs font-semibold
+                       bg-amber-500 hover:bg-amber-600 text-white transition-colors">
+            I confirm — only one screen in use
+          </button>
+        </div>
       )}
     </div>
   )
