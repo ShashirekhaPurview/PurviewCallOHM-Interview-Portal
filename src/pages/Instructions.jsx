@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   CheckCircle2, Circle, AlertTriangle, Camera, Mic,
-  Volume2, Wifi, WifiOff, Monitor, Clock, ShieldAlert,
+  Volume2, Wifi, WifiOff, Monitor, MonitorX, Clock, ShieldAlert,
   RefreshCcw, Maximize, ChevronRight, Loader2,
   CheckCheck, XCircle, RotateCcw,
 } from 'lucide-react'
@@ -195,13 +195,15 @@ function NetworkCheck() {
 
 export default function Instructions({ sessionData, onStart }) {
   const navigate = useNavigate()
-  const [cameraStatus, setCameraStatus] = useState(PERMISSION_STATUS.idle)
-  const [micStatus, setMicStatus]       = useState(PERMISSION_STATUS.idle)
-  const [agreed, setAgreed]             = useState(false)
-  const [starting, setStarting]         = useState(false)
+  const [cameraStatus, setCameraStatus]           = useState(PERMISSION_STATUS.idle)
+  const [micStatus, setMicStatus]                 = useState(PERMISSION_STATUS.idle)
+  const [fullscreenStatus, setFullscreenStatus]   = useState('idle')   // idle | granted | exited
+  const [multiScreen, setMultiScreen]             = useState(null)      // null | true | false
+  const [multiScreenAcknowledged, setMultiScreenAcknowledged] = useState(false)
+  const [agreed, setAgreed]                       = useState(false)
+  const [starting, setStarting]                   = useState(false)
 
-  const allGranted = cameraStatus === 'granted' && micStatus === 'granted'
-
+  // ── Pre-check existing permissions ────────────────────────────────────────
   useEffect(() => {
     navigator.permissions?.query({ name: 'camera' }).then(r => {
       if (r.state === 'granted') setCameraStatus('granted')
@@ -211,6 +213,30 @@ export default function Instructions({ sessionData, onStart }) {
       if (r.state === 'granted') setMicStatus('granted')
       if (r.state === 'denied')  setMicStatus('denied')
     }).catch(() => {})
+  }, [])
+
+  // ── Multi-screen detection ─────────────────────────────────────────────────
+  useEffect(() => {
+    const isExtended = window.screen?.isExtended
+    setMultiScreen(typeof isExtended === 'boolean' ? isExtended : null)
+  }, [])
+
+  // ── Track fullscreen state live ────────────────────────────────────────────
+  useEffect(() => {
+    const h = () => {
+      const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement)
+      if (isFS) {
+        setFullscreenStatus('granted')
+      } else {
+        setFullscreenStatus(prev => prev === 'granted' ? 'exited' : prev)
+      }
+    }
+    document.addEventListener('fullscreenchange', h)
+    document.addEventListener('webkitfullscreenchange', h)
+    return () => {
+      document.removeEventListener('fullscreenchange', h)
+      document.removeEventListener('webkitfullscreenchange', h)
+    }
   }, [])
 
   const requestCamera = async () => {
@@ -235,6 +261,10 @@ export default function Instructions({ sessionData, onStart }) {
     }
   }
 
+  const requestFullscreen = async () => {
+    try { await document.documentElement.requestFullscreen() } catch { /* denied */ }
+  }
+
   const handleStartAssessment = async () => {
     setStarting(true)
     await new Promise(r => setTimeout(r, 600))
@@ -242,7 +272,13 @@ export default function Instructions({ sessionData, onStart }) {
     navigate('/assessment')
   }
 
-  const canStart = allGranted && agreed && !starting
+  const allChecksPass =
+    cameraStatus === 'granted' &&
+    micStatus === 'granted' &&
+    fullscreenStatus === 'granted' &&
+    (multiScreen !== true || multiScreenAcknowledged)
+
+  const canStart = allChecksPass && agreed && !starting
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -326,6 +362,16 @@ export default function Instructions({ sessionData, onStart }) {
               label="Microphone Access"
               status={micStatus}
               onRequest={requestMic}
+            />
+          </div>
+
+          {/* Fullscreen + multi-screen checks */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+            <FullscreenCard status={fullscreenStatus} onRequest={requestFullscreen} />
+            <MultiScreenCard
+              detected={multiScreen}
+              acknowledged={multiScreenAcknowledged}
+              onAcknowledge={() => setMultiScreenAcknowledged(true)}
             />
           </div>
 
@@ -419,12 +465,136 @@ export default function Instructions({ sessionData, onStart }) {
             )}
           </button>
         </div>
-        {!allGranted && (
+        {!allChecksPass && (
           <p className="text-center text-xs text-slate-400 pb-2.5">
-            Grant camera &amp; microphone permissions to enable the Start button.
+            Complete all system checks above to enable the Start button.
           </p>
         )}
       </div>
+    </div>
+  )
+}
+
+/* ─── Fullscreen Card ────────────────────────────────────────────────────── */
+function FullscreenCard({ status, onRequest }) {
+  const config = {
+    idle: {
+      ring: 'border-slate-200 bg-white',
+      iconBg: 'bg-slate-100 text-slate-600',
+      text: 'Not entered', textColor: 'text-slate-500',
+      btn: 'bg-navy-800 hover:bg-navy-700 text-white', btnLabel: 'Enter Fullscreen',
+    },
+    granted: {
+      ring: 'border-green-200 bg-green-50',
+      iconBg: 'bg-green-100 text-green-600',
+      text: 'Fullscreen active', textColor: 'text-green-600',
+      btn: null, btnLabel: null,
+    },
+    exited: {
+      ring: 'border-red-200 bg-red-50',
+      iconBg: 'bg-red-100 text-red-600',
+      text: 'Exited — please re-enter', textColor: 'text-red-600',
+      btn: 'bg-red-600 hover:bg-red-700 text-white', btnLabel: 'Re-enter Fullscreen',
+    },
+  }
+  const c = config[status] ?? config.idle
+  return (
+    <div className={`flex items-center justify-between p-4 rounded-xl border transition-all duration-200 ${c.ring}`}>
+      <div className="flex items-center gap-3">
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${c.iconBg}`}>
+          <Maximize size={20} />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-slate-800">Fullscreen Mode</p>
+          <div className={`flex items-center gap-1 text-xs font-medium ${c.textColor}`}>
+            {status === 'granted' && <CheckCircle2 size={12} />}
+            {status === 'exited'  && <XCircle size={12} />}
+            {status === 'idle'    && <Circle size={12} />}
+            {c.text}
+          </div>
+        </div>
+      </div>
+      {c.btn && (
+        <button onClick={onRequest}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors duration-150 flex-shrink-0 ${c.btn}`}>
+          {c.btnLabel}
+        </button>
+      )}
+    </div>
+  )
+}
+
+/* ─── Multi-Screen Card ──────────────────────────────────────────────────── */
+function MultiScreenCard({ detected, acknowledged, onAcknowledge }) {
+  // detected: null (API unavailable) | false (single screen) | true (multiple screens)
+  if (detected === false) {
+    return (
+      <div className="flex items-center gap-3 p-4 rounded-xl border border-green-200 bg-green-50">
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-green-100 text-green-600 flex-shrink-0">
+          <Monitor size={20} />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-slate-800">Screen Check</p>
+          <div className="flex items-center gap-1 text-xs font-medium text-green-600">
+            <CheckCircle2 size={12} /> Single screen detected
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (detected === true) {
+    return (
+      <div className={`flex items-center justify-between p-4 rounded-xl border transition-all duration-200
+                       ${acknowledged ? 'border-amber-200 bg-amber-50' : 'border-red-200 bg-red-50'}`}>
+        <div className="flex items-center gap-3">
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0
+                           ${acknowledged ? 'bg-amber-100 text-amber-600' : 'bg-red-100 text-red-600'}`}>
+            <MonitorX size={20} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-slate-800">Multiple Screens Detected</p>
+            <p className={`text-xs font-medium leading-snug mt-0.5 ${acknowledged ? 'text-amber-700' : 'text-red-600'}`}>
+              {acknowledged
+                ? 'Acknowledged — use only this screen'
+                : 'Please close or disconnect your second screen before starting.'}
+            </p>
+          </div>
+        </div>
+        {!acknowledged && (
+          <button onClick={onAcknowledge}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0 ml-2
+                       bg-red-600 hover:bg-red-700 text-white transition-colors duration-150">
+            Acknowledge
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  // null — API not available, show a soft advisory
+  return (
+    <div className={`flex items-center justify-between p-4 rounded-xl border transition-all duration-200
+                     ${acknowledged ? 'border-slate-200 bg-white' : 'border-amber-200 bg-amber-50'}`}>
+      <div className="flex items-center gap-3">
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0
+                         ${acknowledged ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-600'}`}>
+          <Monitor size={20} />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-slate-800">Screen Check</p>
+          <p className={`text-xs font-medium leading-snug mt-0.5 ${acknowledged ? 'text-slate-500' : 'text-amber-700'}`}>
+            {acknowledged ? 'Confirmed — using one screen only' : 'Please ensure only one screen is in use.'}
+          </p>
+        </div>
+      </div>
+      {!acknowledged && (
+        <button onClick={onAcknowledge}
+          className="px-3 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0 ml-2
+                     bg-amber-500 hover:bg-amber-600 text-white transition-colors duration-150">
+          Confirm
+        </button>
+      )}
     </div>
   )
 }

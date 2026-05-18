@@ -167,6 +167,9 @@ export default function Assessment({ sessionData }) {
   const [previewError, setPreviewError]   = useState('')
   const [cameraError, setCameraError]     = useState(false)
   const [devToolsOpen, setDevToolsOpen]   = useState(false)
+  const [fullscreenGate, setFullscreenGate] = useState(
+    () => !(document.fullscreenElement || document.webkitFullscreenElement)
+  )
 
   const containerRef        = useRef(null)
   const toastTimerRef       = useRef(null)
@@ -295,22 +298,33 @@ export default function Assessment({ sessionData }) {
   }, [])
 
   useEffect(() => {
-    const h = () => { if (document.hidden && !terminated && !sessionEnded) raiseViolation('tab_switch', 'Tab switch detected! This activity has been flagged.') }
+    const h = () => { if (document.hidden && agentLoaded && !terminated && !sessionEnded) raiseViolation('tab_switch', 'You switched away from this tab. Return to this window immediately — leaving this tab is a violation and may close your interview.') }
     document.addEventListener('visibilitychange', h)
     return () => document.removeEventListener('visibilitychange', h)
-  }, [raiseViolation, sessionEnded, terminated])
+  }, [raiseViolation, agentLoaded, sessionEnded, terminated])
 
   useEffect(() => {
-    const h = () => { if (!terminated && !sessionEnded) raiseViolation('focus_loss', 'Window focus lost! Please stay in this window.') }
+    const h = () => { if (agentLoaded && !terminated && !sessionEnded) raiseViolation('focus_loss', 'You moved away from this window. Return to the interview immediately — switching to another window or screen is a violation and may close your interview.') }
     window.addEventListener('blur', h)
     return () => window.removeEventListener('blur', h)
-  }, [raiseViolation, sessionEnded, terminated])
+  }, [raiseViolation, agentLoaded, sessionEnded, terminated])
+
+  // Poll document.hasFocus() to catch multi-monitor window switches that don't always fire blur
+  useEffect(() => {
+    if (!agentLoaded || terminated || sessionEnded) return
+    const id = setInterval(() => {
+      if (!document.hasFocus() && agentLoaded && !terminated && !sessionEnded) {
+        raiseViolation('focus_loss', 'You moved away from this window. Return to the interview immediately — switching to another window or screen is a violation and may close your interview.')
+      }
+    }, 1000)
+    return () => clearInterval(id)
+  }, [raiseViolation, agentLoaded, terminated, sessionEnded])
 
   useEffect(() => {
     const h = () => {
       const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement)
       setIsFullscreen(isFS)
-      if (!isFS && agentLoaded && !terminated && !sessionEnded) raiseViolation('fullscreen_exit', 'Fullscreen exited! Please return to fullscreen mode.')
+      if (!isFS && agentLoaded && !terminated && !sessionEnded) raiseViolation('fullscreen_exit', 'You exited fullscreen mode. Click the fullscreen button to return — continuing outside fullscreen is a violation and may close your interview.')
     }
     document.addEventListener('fullscreenchange', h)
     document.addEventListener('webkitfullscreenchange', h)
@@ -355,14 +369,20 @@ export default function Assessment({ sessionData }) {
   }, [raiseViolation, terminated, sessionEnded])
 
   useEffect(() => {
-    let cancelled = false
-    const init = async () => {
-      if (containerRef.current?.requestFullscreen) containerRef.current.requestFullscreen().catch(() => {})
-      if (!cancelled) await startPreviewSession()
+    // If arriving from Instructions already in fullscreen, skip gate and start immediately
+    const alreadyFS = !!(document.fullscreenElement || document.webkitFullscreenElement)
+    if (alreadyFS) {
+      setFullscreenGate(false)
+      startPreviewSession()
     }
-    const t = setTimeout(init, 600)
-    return () => { cancelled = true; clearTimeout(t); if (toastTimerRef.current) clearTimeout(toastTimerRef.current); stopPreviewSession() }
+    return () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); stopPreviewSession() }
   }, [])
+
+  const handleEnterFullscreen = useCallback(async () => {
+    try { await containerRef.current?.requestFullscreen() } catch { /* user or browser denied */ }
+    setFullscreenGate(false)
+    await startPreviewSession()
+  }, [startPreviewSession])
 
   useEffect(() => {
     if (!terminated) return
@@ -474,6 +494,31 @@ export default function Assessment({ sessionData }) {
   return (
     <div ref={containerRef} className="flex flex-col bg-black text-white"
          style={{ height: '100vh', overflow: 'hidden' }}>
+
+      {/* ── Fullscreen Gate — blocks entry until user explicitly enters fullscreen ── */}
+      {fullscreenGate && (
+        <div className="fixed inset-0 bg-[#020817] z-[9999] flex flex-col items-center justify-center gap-6 p-8">
+          <div className="w-16 h-16 rounded-2xl bg-blue-500/20 flex items-center justify-center">
+            <Maximize2 size={32} className="text-blue-400" />
+          </div>
+          <div className="text-center max-w-sm">
+            <h2 className="text-white text-xl font-extrabold mb-2 tracking-tight">Fullscreen Required</h2>
+            <p className="text-white/60 text-sm leading-relaxed">
+              Your interview must be conducted in fullscreen mode. Click below to enter fullscreen and begin.
+              Exiting fullscreen at any point will be recorded as a violation.
+            </p>
+          </div>
+          <button onClick={handleEnterFullscreen}
+            className="flex items-center gap-2 px-8 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500
+                       text-white font-semibold text-sm transition-all shadow-lg hover:shadow-blue-500/30">
+            <Maximize2 size={18} />
+            Enter Fullscreen &amp; Start Interview
+          </button>
+          <p className="text-white/30 text-xs text-center max-w-xs">
+            Switching to another window or monitor during the interview will also be flagged.
+          </p>
+        </div>
+      )}
 
       {/* ── Top Info Bar ───────────────────────────────────────────────────── */}
       <header className="flex-shrink-0 flex items-center justify-between
