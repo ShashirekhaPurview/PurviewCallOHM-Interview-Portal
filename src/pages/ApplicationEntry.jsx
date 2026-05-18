@@ -5,9 +5,9 @@ import { validateApplication } from '../apis/apiService'
 
 export default function ApplicationEntry({ onValidated }) {
   const navigate = useNavigate()
-  const [appId, setAppId]     = useState('')
+  const [appId, setAppId] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState('')
+  const [error, setError] = useState('')
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -19,11 +19,11 @@ export default function ApplicationEntry({ onValidated }) {
       const res = await validateApplication(trimmed)
       onValidated({
         applicationId: res.application_id,
-        candidateId:   res.candidate_id,
-        jobId:         res.job_id,
+        candidateId: res.candidate_id,
+        jobId: res.job_id,
         candidateName: res.full_name,
-        validated:     res.success,
-        started:       false,
+        validated: res.success,
+        started: false,
       })
       navigate('/instructions')
     } catch (err) {
@@ -77,7 +77,7 @@ export default function ApplicationEntry({ onValidated }) {
                 <input
                   id="appId"
                   type="text"
-                  placeholder="e.g. APP-2024-XXXXX"
+                  placeholder="e.g. app_f53XXXXX"
                   value={appId}
                   onChange={e => { setAppId(e.target.value); setError('') }}
                   autoFocus
@@ -90,9 +90,9 @@ export default function ApplicationEntry({ onValidated }) {
                               transition-all duration-150 outline-none
                               disabled:opacity-60 disabled:cursor-not-allowed
                               ${error
-                                ? 'border-red-400 ring-2 ring-red-100'
-                                : 'border-slate-200 focus:border-accent focus:ring-2 focus:ring-accent/15'
-                              }`}
+                      ? 'border-red-400 ring-2 ring-red-100'
+                      : 'border-slate-200 focus:border-accent focus:ring-2 focus:ring-accent/15'
+                    }`}
                 />
                 {error && (
                   <p className="flex items-center gap-1.5 text-red-500 text-xs font-medium pt-0.5">
