@@ -113,3 +113,51 @@ export async function reportTermination(applicationId) {
     method: 'POST',
   })
 }
+
+// ── Recording ─────────────────────────────────────────────────────────────────
+
+/**
+ * Uploads the recorded interview video to the backend.
+ * POST /recruitment/recordings/{applicationId}
+ *
+ * @param {string} applicationId
+ * @param {Blob}   blob  — WebM recording blob
+ */
+export async function uploadRecording(applicationId, blob) {
+  const formData = new FormData()
+  formData.append('file', blob, `${applicationId}_recording.webm`)
+
+  const res = await fetch(`${BACKEND_URL}/recruitment/recordings/${applicationId}`, {
+    method: 'POST',
+    headers: {
+      'accept': 'application/json',
+      'xi-api-key': XI_API_KEY,
+    },
+    body: formData,
+  })
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail || body.message || `Upload failed with status ${res.status}`)
+  }
+
+  return res.json()
+}
+
+/**
+ * Best-effort upload on page unload using fetch keepalive.
+ * Does not throw — fire and forget.
+ *
+ * @param {string} applicationId
+ * @param {Blob}   blob
+ */
+export function uploadRecordingBeacon(applicationId, blob) {
+  const formData = new FormData()
+  formData.append('file', blob, `${applicationId}_recording.webm`)
+  fetch(`${BACKEND_URL}/recruitment/recordings/${applicationId}`, {
+    method: 'POST',
+    headers: { 'accept': 'application/json', 'xi-api-key': XI_API_KEY },
+    body: formData,
+    keepalive: true,
+  }).catch(() => {})
+}

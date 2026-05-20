@@ -6,7 +6,7 @@ import {
   Clock, Wifi, XCircle, ChevronRight, Loader2,
   Bot, Volume2, CheckCircle2, VideoOff,
 } from 'lucide-react'
-import { getAgentSignedUrl, reportTermination } from '../apis/apiService'
+import { getAgentSignedUrl, reportTermination, uploadRecording, uploadRecordingBeacon } from '../apis/apiService'
 
 const MAX_VIOLATIONS = 3
 
@@ -169,6 +169,7 @@ export default function Assessment({ sessionData }) {
   const [devToolsOpen, setDevToolsOpen]         = useState(false)
   const [extraScreenDetected, setExtraScreen]   = useState(false)
   const [monitoringActive, setMonitoringActive] = useState(false)
+  const [isUploading, setIsUploading]           = useState(false)
 
   const containerRef        = useRef(null)
   const toastTimerRef       = useRef(null)
@@ -180,21 +181,75 @@ export default function Assessment({ sessionData }) {
   const videoPipRef             = useRef(null)
   const streamRef               = useRef(null)
   const lastViolationTimeRef    = useRef(0)
+  const mediaRecorderRef        = useRef(null)
+  const recordingChunksRef      = useRef([])
+  const uploadedRef             = useRef(false)
 
-  // ── Camera ─────────────────────────────────────────────────────────────────
+  // ── Camera + recording ─────────────────────────────────────────────────────
   useEffect(() => {
     const startCamera = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
         streamRef.current = stream
         if (videoPipRef.current) videoPipRef.current.srcObject = stream
+        startRecording(stream)
       } catch {
         setCameraError(true)
+        // Try video-only fallback so the interview can still proceed
+        try {
+          const videoOnly = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+          streamRef.current = videoOnly
+          if (videoPipRef.current) videoPipRef.current.srcObject = videoOnly
+          startRecording(videoOnly)
+        } catch {
+          setCameraError(true)
+        }
       }
     }
     startCamera()
     return () => streamRef.current?.getTracks().forEach(t => t.stop())
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Recording helpers ───────────────────────────────────────────────────────
+  const startRecording = useCallback((stream) => {
+    if (!stream || !window.MediaRecorder || mediaRecorderRef.current) return
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+      ? 'video/webm;codecs=vp9,opus'
+      : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+      ? 'video/webm;codecs=vp8,opus'
+      : 'video/webm'
+    try {
+      const recorder = new MediaRecorder(stream, { mimeType })
+      mediaRecorderRef.current = recorder
+      recordingChunksRef.current = []
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) recordingChunksRef.current.push(e.data)
+      }
+      recorder.start(1000)
+    } catch { /* recording unavailable — interview continues */ }
   }, [])
+
+  const stopAndUpload = useCallback(async () => {
+    if (uploadedRef.current) return
+    uploadedRef.current = true
+    const recorder = mediaRecorderRef.current
+    if (!recorder) return
+    setIsUploading(true)
+    try {
+      await new Promise((resolve) => {
+        if (recorder.state === 'inactive') { resolve(); return }
+        recorder.onstop = resolve
+        recorder.stop()
+      })
+      const chunks = recordingChunksRef.current
+      if (chunks.length > 0) {
+        const blob = new Blob(chunks, { type: recorder.mimeType || 'video/webm' })
+        await uploadRecording(sessionData?.applicationId, blob)
+      }
+    } catch { /* best effort */ } finally {
+      setIsUploading(false)
+    }
+  }, [sessionData?.applicationId])
 
   // ── ElevenLabs voice conversation ──────────────────────────────────────────
   const voiceConv = useConversation({
@@ -291,10 +346,24 @@ export default function Assessment({ sessionData }) {
   }, [sessionEnded, terminated])
 
   useEffect(() => {
-    const h = (e) => { e.preventDefault(); e.returnValue = 'Interview in progress.'; return e.returnValue }
+    const h = (e) => {
+      e.preventDefault()
+      e.returnValue = 'Interview in progress.'
+      // Best-effort upload of whatever chunks we have at the time of unload
+      if (!uploadedRef.current && recordingChunksRef.current.length > 0) {
+        uploadedRef.current = true
+        const recorder = mediaRecorderRef.current
+        if (recorder && recorder.state !== 'inactive') recorder.requestData()
+        const blob = new Blob(recordingChunksRef.current, {
+          type: recorder?.mimeType || 'video/webm',
+        })
+        uploadRecordingBeacon(sessionData?.applicationId, blob)
+      }
+      return e.returnValue
+    }
     window.addEventListener('beforeunload', h)
     return () => window.removeEventListener('beforeunload', h)
-  }, [])
+  }, [sessionData?.applicationId])
 
   useEffect(() => {
     const h = () => { if (document.hidden && monitoringActive && !terminated && !sessionEnded) raiseViolation('tab_switch', 'You switched away from this tab. Return to this window immediately — leaving this tab is a violation and may close your interview.') }
@@ -425,8 +494,13 @@ export default function Assessment({ sessionData }) {
     if (!terminated) return
     stopPreviewSession()
     reportTermination(sessionData?.applicationId).catch(() => {})
-  }, [terminated, stopPreviewSession])
-  useEffect(() => { if (sessionEnded) stopPreviewSession() }, [sessionEnded, stopPreviewSession])
+    stopAndUpload()
+  }, [terminated, stopPreviewSession, stopAndUpload])
+  useEffect(() => {
+    if (!sessionEnded) return
+    stopPreviewSession()
+    stopAndUpload()
+  }, [sessionEnded, stopPreviewSession, stopAndUpload])
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
   const toggleFullscreen = () => {
@@ -436,7 +510,7 @@ export default function Assessment({ sessionData }) {
 
   const confirmExit = async () => {
     setShowExitModal(false)
-    await stopPreviewSession()
+    await Promise.all([stopPreviewSession(), stopAndUpload()])
     sessionStorage.removeItem('interview_session')
     navigate('/')
   }
@@ -458,8 +532,6 @@ export default function Assessment({ sessionData }) {
     violations === 0 ? 'text-green-400' :
     violations === 1 ? 'text-yellow-400' :
     violations === 2 ? 'text-orange-400' : 'text-red-400'
-
-  // Agent (Aliya) is always the main full-screen view; candidate is always PiP
 
   // ── Terminated screen ────────────────────────────────────────────────────────
   if (terminated) {
@@ -484,6 +556,12 @@ export default function Assessment({ sessionData }) {
               {violations} violation{violations !== 1 ? 's' : ''} recorded
             </p>
           </div>
+          {isUploading && (
+            <div className="flex items-center justify-center gap-2 text-slate-400 text-xs mb-4">
+              <Loader2 size={13} className="animate-spin" />
+              Uploading recording…
+            </div>
+          )}
           <p className="text-slate-400 text-xs">
             If you believe this is an error, contact{' '}
             <a href="mailto:support@purviewcallohm.com" className="text-accent hover:underline font-medium">
@@ -515,12 +593,19 @@ export default function Assessment({ sessionData }) {
           <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
             <p className="text-green-700 text-xs font-semibold">Session duration: {formatTime(elapsed)}</p>
           </div>
-          <p className="text-slate-400 text-xs mb-6">
-            You can close this window. The recruiter will contact you if anything else is needed.
-          </p>
-          <button onClick={handleTerminatedClose}
-            className="w-full py-3 rounded-xl bg-navy-800 hover:bg-navy-700 font-semibold text-sm text-white transition-all">
-            Close Session
+          {isUploading ? (
+            <div className="flex items-center justify-center gap-2 text-slate-400 text-xs mb-6">
+              <Loader2 size={13} className="animate-spin" />
+              Uploading recording… please wait
+            </div>
+          ) : (
+            <p className="text-slate-400 text-xs mb-6">
+              You can close this window. The recruiter will contact you if anything else is needed.
+            </p>
+          )}
+          <button onClick={handleTerminatedClose} disabled={isUploading}
+            className="w-full py-3 rounded-xl bg-navy-800 hover:bg-navy-700 font-semibold text-sm text-white transition-all disabled:opacity-50 disabled:cursor-wait">
+            {isUploading ? 'Please wait…' : 'Close Session'}
           </button>
         </div>
       </div>
@@ -606,28 +691,27 @@ export default function Assessment({ sessionData }) {
           </div>
         )}
 
-        {/* ── MAIN VIEW — Aliya (always full-screen) ────────────────────── */}
-        <div className="absolute inset-0 z-10">
-          <AgentVisual isSpeaking={isSpeaking} isConnecting={isConnecting} isMain={true} />
-          <div className="absolute bottom-24 left-5 z-10">
-            <span className="text-xs font-semibold text-white bg-black/50 backdrop-blur-sm
-                             px-2.5 py-1 rounded-lg">
-              Aliya
-            </span>
+        {/* ── 50/50 split — Aliya (left) | Candidate (right) ───────────── */}
+        <div className="absolute inset-0 flex flex-row z-10">
+          {/* Left half — Aliya */}
+          <div className="w-1/2 h-full relative border-r border-white/10">
+            <AgentVisual isSpeaking={isSpeaking} isConnecting={isConnecting} isMain={true} />
+            <div className="absolute bottom-24 left-5 z-10">
+              <span className="text-xs font-semibold text-white bg-black/50 backdrop-blur-sm
+                               px-2.5 py-1 rounded-lg">
+                Aliya
+              </span>
+            </div>
           </div>
-        </div>
-
-        {/* ── PiP WINDOW — candidate camera (always bottom-right) ───────── */}
-        <div className="absolute bottom-20 right-5 z-30
-                        w-44 h-28 sm:w-52 sm:h-32
-                        rounded-2xl overflow-hidden
-                        border-2 border-white/25 shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
-          <CandidateView
-            videoRef={videoPipRef}
-            cameraError={cameraError}
-            candidateName={sessionData.candidateName}
-            isMain={false}
-          />
+          {/* Right half — Candidate */}
+          <div className="w-1/2 h-full relative">
+            <CandidateView
+              videoRef={videoPipRef}
+              cameraError={cameraError}
+              candidateName={sessionData.candidateName}
+              isMain={true}
+            />
+          </div>
         </div>
 
         {/* ── Error overlay ──────────────────────────────────────────────── */}
