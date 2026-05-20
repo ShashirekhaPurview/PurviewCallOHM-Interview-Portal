@@ -63,18 +63,18 @@ const PERMISSION_STATUS = { idle: 'idle', requesting: 'requesting', granted: 'gr
 // ── Network quality helpers ───────────────────────────────────────────────────
 function getNetworkQuality({ online, rtt, downlink, effectiveType }) {
   if (!online) return { level: 'offline', label: 'No Connection', color: 'red' }
-  if (effectiveType === 'slow-2g' || (rtt > 600)) return { level: 'poor',      label: 'Poor',      color: 'red'    }
-  if (effectiveType === '2g'      || (rtt > 300)) return { level: 'fair',      label: 'Fair',      color: 'orange' }
-  if (effectiveType === '3g'      || (rtt > 100)) return { level: 'good',      label: 'Good',      color: 'yellow' }
-  return                                                 { level: 'excellent',  label: 'Excellent', color: 'green'  }
+  if (effectiveType === 'slow-2g' || (rtt > 600)) return { level: 'poor', label: 'Poor', color: 'red' }
+  if (effectiveType === '2g' || (rtt > 300)) return { level: 'fair', label: 'Fair', color: 'orange' }
+  if (effectiveType === '3g' || (rtt > 100)) return { level: 'good', label: 'Good', color: 'yellow' }
+  return { level: 'excellent', label: 'Excellent', color: 'green' }
 }
 
 function NetworkCheck() {
-  const [online, setOnline]         = useState(navigator.onLine)
-  const [latency, setLatency]       = useState(null)   // ms
-  const [downlink, setDownlink]     = useState(null)   // Mbps
+  const [online, setOnline] = useState(navigator.onLine)
+  const [latency, setLatency] = useState(null)   // ms
+  const [downlink, setDownlink] = useState(null)   // Mbps
   const [effectiveType, setEffType] = useState(null)
-  const [checking, setChecking]     = useState(false)
+  const [checking, setChecking] = useState(false)
   const intervalRef = useRef(null)
 
   const measureLatency = useCallback(async () => {
@@ -100,10 +100,10 @@ function NetworkCheck() {
   }, [])
 
   useEffect(() => {
-    const handleOnline  = () => { setOnline(true);  measureLatency(); readConnection() }
+    const handleOnline = () => { setOnline(true); measureLatency(); readConnection() }
     const handleOffline = () => { setOnline(false); setLatency(null) }
 
-    window.addEventListener('online',  handleOnline)
+    window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
 
     const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection
@@ -120,7 +120,7 @@ function NetworkCheck() {
     }, 8000)
 
     return () => {
-      window.removeEventListener('online',  handleOnline)
+      window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
       conn?.removeEventListener('change', readConnection)
       clearInterval(intervalRef.current)
@@ -131,10 +131,10 @@ function NetworkCheck() {
   const quality = getNetworkQuality({ online, rtt, downlink, effectiveType })
 
   const colorMap = {
-    green:  { ring: 'border-green-200 bg-green-50',   icon: 'bg-green-100 text-green-600',  text: 'text-green-700',  bar: 'bg-green-500'  },
-    yellow: { ring: 'border-yellow-200 bg-yellow-50', icon: 'bg-yellow-100 text-yellow-600',text: 'text-yellow-700', bar: 'bg-yellow-400' },
-    orange: { ring: 'border-orange-200 bg-orange-50', icon: 'bg-orange-100 text-orange-600',text: 'text-orange-700', bar: 'bg-orange-400' },
-    red:    { ring: 'border-red-200 bg-red-50',       icon: 'bg-red-100 text-red-600',      text: 'text-red-700',    bar: 'bg-red-500'    },
+    green: { ring: 'border-green-200 bg-green-50', icon: 'bg-green-100 text-green-600', text: 'text-green-700', bar: 'bg-green-500' },
+    yellow: { ring: 'border-yellow-200 bg-yellow-50', icon: 'bg-yellow-100 text-yellow-600', text: 'text-yellow-700', bar: 'bg-yellow-400' },
+    orange: { ring: 'border-orange-200 bg-orange-50', icon: 'bg-orange-100 text-orange-600', text: 'text-orange-700', bar: 'bg-orange-400' },
+    red: { ring: 'border-red-200 bg-red-50', icon: 'bg-red-100 text-red-600', text: 'text-red-700', bar: 'bg-red-500' },
   }
   const c = colorMap[quality.color]
 
@@ -195,24 +195,24 @@ function NetworkCheck() {
 
 export default function Instructions({ sessionData, onStart }) {
   const navigate = useNavigate()
-  const [cameraStatus, setCameraStatus]           = useState(PERMISSION_STATUS.idle)
-  const [micStatus, setMicStatus]                 = useState(PERMISSION_STATUS.idle)
-  const [fullscreenStatus, setFullscreenStatus]   = useState('idle')   // idle | granted | exited
-  const [multiScreen, setMultiScreen]             = useState(null)      // null | true | false
+  const [cameraStatus, setCameraStatus] = useState(PERMISSION_STATUS.idle)
+  const [micStatus, setMicStatus] = useState(PERMISSION_STATUS.idle)
+  const [fullscreenStatus, setFullscreenStatus] = useState('idle')   // idle | granted | exited
+  const [multiScreen, setMultiScreen] = useState(null)      // null | true | false
   const [multiScreenAcknowledged, setMultiScreenAcknowledged] = useState(false)
-  const [agreed, setAgreed]                       = useState(false)
-  const [starting, setStarting]                   = useState(false)
+  const [agreed, setAgreed] = useState(false)
+  const [starting, setStarting] = useState(false)
 
   // ── Pre-check existing permissions ────────────────────────────────────────
   useEffect(() => {
     navigator.permissions?.query({ name: 'camera' }).then(r => {
       if (r.state === 'granted') setCameraStatus('granted')
-      if (r.state === 'denied')  setCameraStatus('denied')
-    }).catch(() => {})
+      if (r.state === 'denied') setCameraStatus('denied')
+    }).catch(() => { })
     navigator.permissions?.query({ name: 'microphone' }).then(r => {
       if (r.state === 'granted') setMicStatus('granted')
-      if (r.state === 'denied')  setMicStatus('denied')
-    }).catch(() => {})
+      if (r.state === 'denied') setMicStatus('denied')
+    }).catch(() => { })
   }, [])
 
   // ── Multi-screen detection ─────────────────────────────────────────────────
@@ -228,7 +228,7 @@ export default function Instructions({ sessionData, onStart }) {
       window.screen.addEventListener?.('change', onChange)
       return () => window.screen.removeEventListener?.('change', onChange)
     }
-    // getScreenDetails exists but requires a user gesture — show button
+    // getScreenDetails exists but requires a user gesture - show button
     if (typeof window.getScreenDetails === 'function') {
       setMultiScreen('needs-check')
     } else {
@@ -236,7 +236,7 @@ export default function Instructions({ sessionData, onStart }) {
     }
   }, [])
 
-  // Called on button click (user gesture) — can trigger permission prompt
+  // Called on button click (user gesture) - can trigger permission prompt
   const runScreenCheck = useCallback(async () => {
     setMultiScreen('checking')
 
@@ -246,7 +246,7 @@ export default function Instructions({ sessionData, onStart }) {
       return
     }
 
-    // getScreenDetails — MUST be called from user gesture; shows permission dialog
+    // getScreenDetails - MUST be called from user gesture; shows permission dialog
     if (typeof window.getScreenDetails === 'function') {
       try {
         const details = await window.getScreenDetails()
@@ -262,7 +262,7 @@ export default function Instructions({ sessionData, onStart }) {
 
     // Position heuristic: window is on a non-primary monitor
     const sl = window.screenLeft ?? window.screenX ?? 0
-    const st = window.screenTop  ?? window.screenY ?? 0
+    const st = window.screenTop ?? window.screenY ?? 0
     if (sl < 0 || sl >= window.screen.width || st < 0 || st >= window.screen.height) {
       setMultiScreen(true)
       return
@@ -326,7 +326,7 @@ export default function Instructions({ sessionData, onStart }) {
     cameraStatus === 'granted' &&
     micStatus === 'granted' &&
     fullscreenStatus === 'granted' &&
-    multiScreen !== true &&          // hard block — must disconnect second screen
+    multiScreen !== true &&          // hard block - must disconnect second screen
     multiScreen !== 'checking' &&
     multiScreen !== 'needs-check' && // must click the Verify button first
     (multiScreen === false || multiScreenAcknowledged) // null requires confirm
@@ -490,18 +490,20 @@ export default function Instructions({ sessionData, onStart }) {
                       shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.08)]">
         <div className="max-w-5xl mx-auto px-6 py-4 flex flex-col sm:flex-row
                         items-start sm:items-center gap-4 justify-between">
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={agreed}
-              onChange={e => setAgreed(e.target.checked)}
-              className="custom-checkbox mt-0.5"
-            />
-            <span className="text-sm text-slate-600 leading-relaxed">
-              I have read and understood all the instructions above, and I agree to the{' '}
-              <span className="font-semibold text-slate-800">interview terms and conditions.</span>
-            </span>
-          </label>
+          <div className="flex flex-col gap-2.5">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={agreed}
+                onChange={e => setAgreed(e.target.checked)}
+                className="custom-checkbox mt-0.5"
+              />
+              <span className="text-sm text-slate-600 leading-relaxed">
+                I have read and understood all the instructions above, and I agree to the{' '}
+                <span className="font-semibold text-slate-800">interview terms and conditions.</span>
+              </span>
+            </label>
+          </div>
 
           <button
             onClick={handleStartAssessment}
@@ -547,7 +549,7 @@ function FullscreenCard({ status, onRequest }) {
     exited: {
       ring: 'border-red-200 bg-red-50',
       iconBg: 'bg-red-100 text-red-600',
-      text: 'Exited — please re-enter', textColor: 'text-red-600',
+      text: 'Exited - please re-enter', textColor: 'text-red-600',
       btn: 'bg-red-600 hover:bg-red-700 text-white', btnLabel: 'Re-enter Fullscreen',
     },
   }
@@ -562,8 +564,8 @@ function FullscreenCard({ status, onRequest }) {
           <p className="text-sm font-semibold text-slate-800">Fullscreen Mode</p>
           <div className={`flex items-center gap-1 text-xs font-medium ${c.textColor}`}>
             {status === 'granted' && <CheckCircle2 size={12} />}
-            {status === 'exited'  && <XCircle size={12} />}
-            {status === 'idle'    && <Circle size={12} />}
+            {status === 'exited' && <XCircle size={12} />}
+            {status === 'idle' && <Circle size={12} />}
             {c.text}
           </div>
         </div>
@@ -643,7 +645,7 @@ function MultiScreenCard({ detected, acknowledged, onAcknowledge, onRecheck }) {
   }
 
   if (detected === true) {
-    // Hard block — cannot acknowledge and proceed; must disconnect and recheck
+    // Hard block - cannot acknowledge and proceed; must disconnect and recheck
     return (
       <div className="p-4 rounded-xl border border-red-300 bg-red-50 space-y-2.5">
         <div className="flex items-center gap-3">
@@ -666,7 +668,7 @@ function MultiScreenCard({ detected, acknowledged, onAcknowledge, onRecheck }) {
     )
   }
 
-  // null — browser doesn't support detection; require manual confirmation
+  // null - browser doesn't support detection; require manual confirmation
   return (
     <div className={`p-4 rounded-xl border transition-all duration-200
                      ${acknowledged ? 'border-slate-200 bg-white' : 'border-amber-200 bg-amber-50'}`}>
@@ -679,7 +681,7 @@ function MultiScreenCard({ detected, acknowledged, onAcknowledge, onRecheck }) {
           <p className="text-sm font-semibold text-slate-800">Screen Check</p>
           <p className={`text-xs font-medium leading-snug mt-0.5 ${acknowledged ? 'text-slate-500' : 'text-amber-700'}`}>
             {acknowledged
-              ? 'Confirmed — proceeding with single screen only'
+              ? 'Confirmed - proceeding with single screen only'
               : 'Could not detect screen count automatically. Confirm you are on a single screen.'}
           </p>
         </div>
@@ -694,7 +696,7 @@ function MultiScreenCard({ detected, acknowledged, onAcknowledge, onRecheck }) {
           <button onClick={onAcknowledge}
             className="flex-1 py-1.5 rounded-lg text-xs font-semibold
                        bg-amber-500 hover:bg-amber-600 text-white transition-colors">
-            I confirm — only one screen in use
+            I confirm - only one screen in use
           </button>
         </div>
       )}
@@ -703,13 +705,13 @@ function MultiScreenCard({ detected, acknowledged, onAcknowledge, onRecheck }) {
 }
 
 /* ─── Permission Card ────────────────────────────────────────────────────── */
-function PermissionCard({ icon, label, status, onRequest }) {
+function PermissionCard({ icon, label, status, onRequest, hint, disabled }) {
   const config = {
     idle: {
-      ring: 'border-slate-200 bg-white',
-      iconBg: 'bg-slate-100 text-slate-600',
-      text: 'Not yet granted', textColor: 'text-slate-500',
-      btn: 'bg-navy-800 hover:bg-navy-700 text-white', btnLabel: 'Grant Permission',
+      ring: disabled ? 'border-slate-100 bg-slate-50' : 'border-slate-200 bg-white',
+      iconBg: disabled ? 'bg-slate-100 text-slate-400' : 'bg-slate-100 text-slate-600',
+      text: 'Not yet granted', textColor: disabled ? 'text-slate-400' : 'text-slate-500',
+      btn: disabled ? null : 'bg-navy-800 hover:bg-navy-700 text-white', btnLabel: 'Grant Permission',
     },
     requesting: {
       ring: 'border-blue-200 bg-blue-50',
@@ -742,12 +744,15 @@ function PermissionCard({ icon, label, status, onRequest }) {
         <div>
           <p className="text-sm font-semibold text-slate-800">{label}</p>
           <div className={`flex items-center gap-1 text-xs font-medium ${c.textColor}`}>
-            {status === 'granted'    && <CheckCircle2 size={12} />}
-            {status === 'denied'     && <XCircle size={12} />}
+            {status === 'granted' && <CheckCircle2 size={12} />}
+            {status === 'denied' && <XCircle size={12} />}
             {status === 'requesting' && <Loader2 size={12} className="animate-spin" />}
-            {status === 'idle'       && <Circle size={12} />}
+            {status === 'idle' && <Circle size={12} />}
             {c.text}
           </div>
+          {hint && status === 'idle' && (
+            <p className="text-[11px] text-slate-400 mt-0.5">{hint}</p>
+          )}
         </div>
       </div>
       {c.btn && (

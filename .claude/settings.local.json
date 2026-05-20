@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(npm install *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(Remove-Item -Path \"c:\\\\Users\\\\Shashirekha\\\\Desktop\\\\My Projects\\\\purview-callohm-interview-portal\\\\src\\\\screenRecordingState.js\" -Force)",
+      "Bash(Start-Sleep -Seconds 3)",
+      "Bash(Get-Content \"C:\\\\Users\\\\SHASHI~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-Shashirekha-Desktop-My-Projects-purview-callohm-interview-portal\\\\d9ac3add-8ff9-41e5-897f-adb4602927ff\\\\tasks\\\\bxecuhwfp.output\")",
+      "Bash(Select-Object -Last 20)"
     ]
   }
 }

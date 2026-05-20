@@ -21,10 +21,10 @@ const PREVIEW_DYNAMIC_VARIABLE_KEYS = [
 
 const buildPreviewDynamicVariables = (sessionData) => {
   const actualValues = {
-    candidate_name:   sessionData?.candidateName  || 'a',
-    candidate_id:     sessionData?.candidateId    || 'a',
-    application_id:   sessionData?.applicationId  || 'a',
-    job_id:           sessionData?.jobId          || 'a',
+    candidate_name: sessionData?.candidateName || 'a',
+    candidate_id: sessionData?.candidateId || 'a',
+    application_id: sessionData?.applicationId || 'a',
+    job_id: sessionData?.jobId || 'a',
   }
   return PREVIEW_DYNAMIC_VARIABLE_KEYS.reduce((acc, key) => {
     acc[key] = actualValues[key] || 'a'
@@ -42,10 +42,10 @@ function AgentVisual({ isSpeaking, isConnecting, isMain }) {
       {/* Ambient glow */}
       <div className={`absolute inset-0 transition-opacity duration-700 pointer-events-none
                        ${isSpeaking ? 'opacity-100' : 'opacity-30'}`}
-           style={{ background: 'radial-gradient(circle at 50% 45%, rgba(59,130,246,0.25), transparent 65%)' }} />
+        style={{ background: 'radial-gradient(circle at 50% 45%, rgba(59,130,246,0.25), transparent 65%)' }} />
 
       {isMain ? (
-        /* Main view — large orb */
+        /* Main view - large orb */
         <div className="flex flex-col items-center gap-4 relative z-10">
           {/* Outer pulse ring */}
           <div className="relative">
@@ -53,14 +53,14 @@ function AgentVisual({ isSpeaking, isConnecting, isMain }) {
               <>
                 <div className="absolute inset-0 rounded-full bg-blue-500/20 animate-ping scale-125" />
                 <div className="absolute inset-0 rounded-full bg-blue-400/10 animate-ping scale-150"
-                     style={{ animationDelay: '0.2s' }} />
+                  style={{ animationDelay: '0.2s' }} />
               </>
             )}
             <div className={`relative w-36 h-36 sm:w-44 sm:h-44 rounded-full border-2
                              flex items-center justify-center transition-all duration-500
                              ${isSpeaking
-                               ? 'border-blue-400/60 bg-blue-500/15 shadow-[0_0_60px_rgba(59,130,246,0.35)]'
-                               : 'border-white/15 bg-white/[0.06]'}`}>
+                ? 'border-blue-400/60 bg-blue-500/15 shadow-[0_0_60px_rgba(59,130,246,0.35)]'
+                : 'border-white/15 bg-white/[0.06]'}`}>
               {isConnecting ? (
                 <Loader2 size={40} className="text-blue-300 animate-spin" />
               ) : (
@@ -76,8 +76,8 @@ function AgentVisual({ isSpeaking, isConnecting, isMain }) {
             <div className="flex items-center justify-center gap-1.5 mt-1">
               <span className={`w-2 h-2 rounded-full transition-colors duration-300
                                ${isConnecting ? 'bg-yellow-400 animate-pulse'
-                                 : isSpeaking  ? 'bg-blue-400 animate-pulse'
-                                 : 'bg-emerald-400 animate-pulse'}`} />
+                  : isSpeaking ? 'bg-blue-400 animate-pulse'
+                    : 'bg-emerald-400 animate-pulse'}`} />
               <span className="text-xs text-white/55 font-medium uppercase tracking-widest">
                 {isConnecting ? 'Connecting' : isSpeaking ? 'Speaking' : 'Listening'}
               </span>
@@ -85,7 +85,7 @@ function AgentVisual({ isSpeaking, isConnecting, isMain }) {
           </div>
         </div>
       ) : (
-        /* PiP view — compact */
+        /* PiP view - compact */
         <div className="flex flex-col items-center justify-center gap-1.5 w-full h-full">
           <div className={`w-12 h-12 rounded-full border flex items-center justify-center
                            transition-all duration-300
@@ -93,8 +93,8 @@ function AgentVisual({ isSpeaking, isConnecting, isMain }) {
             {isConnecting
               ? <Loader2 size={18} className="text-blue-300 animate-spin" />
               : isSpeaking
-              ? <Volume2 size={18} className="text-blue-300" />
-              : <Bot size={18} className="text-white/70" />}
+                ? <Volume2 size={18} className="text-blue-300" />
+                : <Bot size={18} className="text-white/70" />}
           </div>
           <span className="text-[10px] font-semibold text-white/60 uppercase tracking-wide">
             Aliya
@@ -110,7 +110,7 @@ function CandidateView({ videoRef, cameraError, candidateName, isMain }) {
   const initial = candidateName?.[0]?.toUpperCase() || 'C'
   return (
     <div className="w-full h-full relative bg-slate-900 overflow-hidden">
-      {/* Camera feed — always rendered so stream stays active */}
+      {/* Camera feed - always rendered so stream stays active */}
       <video
         ref={videoRef}
         autoPlay
@@ -125,16 +125,16 @@ function CandidateView({ videoRef, cameraError, candidateName, isMain }) {
                         bg-gradient-to-b from-slate-800 to-slate-900 gap-3">
           {isMain
             ? <>
-                <div className="w-24 h-24 rounded-full bg-slate-700 border-2 border-slate-600
+              <div className="w-24 h-24 rounded-full bg-slate-700 border-2 border-slate-600
                                 flex items-center justify-center">
-                  <span className="text-4xl font-extrabold text-white/60">{initial}</span>
-                </div>
-                <p className="text-white/40 text-sm font-medium">{candidateName}</p>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <VideoOff size={12} className="text-white/30" />
-                  <span className="text-white/30 text-xs">Camera unavailable</span>
-                </div>
-              </>
+                <span className="text-4xl font-extrabold text-white/60">{initial}</span>
+              </div>
+              <p className="text-white/40 text-sm font-medium">{candidateName}</p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <VideoOff size={12} className="text-white/30" />
+                <span className="text-white/30 text-xs">Camera unavailable</span>
+              </div>
+            </>
             : <span className="text-2xl font-extrabold text-white/50">{initial}</span>
           }
         </div>
@@ -156,36 +156,38 @@ function CandidateView({ videoRef, cameraError, candidateName, isMain }) {
 export default function Assessment({ sessionData }) {
   const navigate = useNavigate()
 
-  const [elapsed, setElapsed]             = useState(0)
-  const [isFullscreen, setIsFullscreen]   = useState(false)
-  const [violations, setViolations]       = useState(0)
+  const [elapsed, setElapsed] = useState(0)
+  const [isFullscreen, setIsFullscreen] = useState(
+    () => !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement)
+  )
+  const [violations, setViolations] = useState(0)
   const [showExitModal, setShowExitModal] = useState(false)
   const [showViolation, setShowViolation] = useState(null)
-  const [terminated, setTerminated]       = useState(false)
-  const [sessionEnded, setSessionEnded]   = useState(false)
-  const [agentLoaded, setAgentLoaded]     = useState(false)
-  const [previewError, setPreviewError]   = useState('')
-  const [cameraError, setCameraError]     = useState(false)
-  const [devToolsOpen, setDevToolsOpen]         = useState(false)
-  const [extraScreenDetected, setExtraScreen]   = useState(false)
+  const [terminated, setTerminated] = useState(false)
+  const [sessionEnded, setSessionEnded] = useState(false)
+  const [agentLoaded, setAgentLoaded] = useState(false)
+  const [previewError, setPreviewError] = useState('')
+  const [cameraError, setCameraError] = useState(false)
+  const [devToolsOpen, setDevToolsOpen] = useState(false)
+  const [extraScreenDetected, setExtraScreen] = useState(false)
   const [monitoringActive, setMonitoringActive] = useState(false)
-  const [isUploading, setIsUploading]           = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
 
-  const containerRef        = useRef(null)
-  const toastTimerRef       = useRef(null)
-  const hasInitializedRef   = useRef(false)
+  const containerRef = useRef(null)
+  const toastTimerRef = useRef(null)
+  const hasInitializedRef = useRef(false)
   const isStartingSessionRef = useRef(false)
-  const intentionalStopRef  = useRef(false)
-  const voiceConvRef        = useRef(null)
+  const intentionalStopRef = useRef(false)
+  const voiceConvRef = useRef(null)
   const hasConnectedOnceRef = useRef(false)
-  const videoPipRef             = useRef(null)
-  const streamRef               = useRef(null)
-  const lastViolationTimeRef    = useRef(0)
-  const mediaRecorderRef        = useRef(null)
-  const recordingChunksRef      = useRef([])
-  const uploadedRef             = useRef(false)
+  const videoPipRef = useRef(null)
+  const streamRef = useRef(null)
+  const lastViolationTimeRef = useRef(0)
+  const mediaRecorderRef = useRef(null)
+  const recordingChunksRef = useRef([])
+  const uploadedRef = useRef(false)
 
-  // ── Camera + recording ─────────────────────────────────────────────────────
+  // ── Camera + recording setup ───────────────────────────────────────────────
   useEffect(() => {
     const startCamera = async () => {
       try {
@@ -195,19 +197,18 @@ export default function Assessment({ sessionData }) {
         startRecording(stream)
       } catch {
         setCameraError(true)
-        // Try video-only fallback so the interview can still proceed
         try {
           const videoOnly = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
           streamRef.current = videoOnly
           if (videoPipRef.current) videoPipRef.current.srcObject = videoOnly
           startRecording(videoOnly)
-        } catch {
-          setCameraError(true)
-        }
+        } catch { setCameraError(true) }
       }
     }
     startCamera()
-    return () => streamRef.current?.getTracks().forEach(t => t.stop())
+    return () => {
+      streamRef.current?.getTracks().forEach(t => t.stop())
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Recording helpers ───────────────────────────────────────────────────────
@@ -216,17 +217,21 @@ export default function Assessment({ sessionData }) {
     const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
       ? 'video/webm;codecs=vp9,opus'
       : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
-      ? 'video/webm;codecs=vp8,opus'
-      : 'video/webm'
+        ? 'video/webm;codecs=vp8,opus'
+        : 'video/webm'
     try {
-      const recorder = new MediaRecorder(stream, { mimeType })
+      const recorder = new MediaRecorder(stream, {
+        mimeType,
+        videoBitsPerSecond: 250000,  // 250 kbps — ~37MB for 10 min
+        audioBitsPerSecond: 32000,   // 32 kbps — sufficient for speech
+      })
       mediaRecorderRef.current = recorder
       recordingChunksRef.current = []
       recorder.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) recordingChunksRef.current.push(e.data)
       }
       recorder.start(1000)
-    } catch { /* recording unavailable — interview continues */ }
+    } catch { /* recording unavailable - interview continues */ }
   }, [])
 
   const stopAndUpload = useCallback(async () => {
@@ -265,7 +270,7 @@ export default function Assessment({ sessionData }) {
       intentionalStopRef.current = false
       if (!wasIntentional && hasConnectedOnceRef.current) setSessionEnded(true)
     },
-    onMessage: () => {},
+    onMessage: () => { },
     onError: (error) => {
       isStartingSessionRef.current = false
       hasInitializedRef.current = false
@@ -280,8 +285,8 @@ export default function Assessment({ sessionData }) {
   useEffect(() => { voiceConvRef.current = voiceConv }, [voiceConv])
 
   const formatTime = (s) => {
-    const h   = String(Math.floor(s / 3600)).padStart(2, '0')
-    const m   = String(Math.floor((s % 3600) / 60)).padStart(2, '0')
+    const h = String(Math.floor(s / 3600)).padStart(2, '0')
+    const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0')
     const sec = String(s % 60).padStart(2, '0')
     return `${h}:${m}:${sec}`
   }
@@ -308,8 +313,8 @@ export default function Assessment({ sessionData }) {
       hasInitializedRef.current = true; return
     }
     isStartingSessionRef.current = true
-    intentionalStopRef.current   = false
-    hasInitializedRef.current    = true
+    intentionalStopRef.current = false
+    hasInitializedRef.current = true
     try {
       setPreviewError('')
       setAgentLoaded(false)
@@ -330,8 +335,8 @@ export default function Assessment({ sessionData }) {
   const stopPreviewSession = useCallback(async () => {
     const conv = voiceConvRef.current
     if (!conv) return
-    intentionalStopRef.current   = true
-    hasInitializedRef.current    = false
+    intentionalStopRef.current = true
+    hasInitializedRef.current = false
     isStartingSessionRef.current = false
     try {
       if (conv.status === 'connected' || conv.status === 'connecting') await conv.endSession()
@@ -366,13 +371,13 @@ export default function Assessment({ sessionData }) {
   }, [sessionData?.applicationId])
 
   useEffect(() => {
-    const h = () => { if (document.hidden && monitoringActive && !terminated && !sessionEnded) raiseViolation('tab_switch', 'You switched away from this tab. Return to this window immediately — leaving this tab is a violation and may close your interview.') }
+    const h = () => { if (document.hidden && monitoringActive && !terminated && !sessionEnded) raiseViolation('tab_switch', 'You switched away from this tab. Return to this window immediately - leaving this tab is a violation and may close your interview.') }
     document.addEventListener('visibilitychange', h)
     return () => document.removeEventListener('visibilitychange', h)
   }, [raiseViolation, monitoringActive, sessionEnded, terminated])
 
   useEffect(() => {
-    const h = () => { if (monitoringActive && !terminated && !sessionEnded) raiseViolation('focus_loss', 'You moved away from this window. Return to the interview immediately — switching to another window or screen is a violation and may close your interview.') }
+    const h = () => { if (monitoringActive && !terminated && !sessionEnded) raiseViolation('focus_loss', 'You moved away from this window. Return to the interview immediately - switching to another window or screen is a violation and may close your interview.') }
     window.addEventListener('blur', h)
     return () => window.removeEventListener('blur', h)
   }, [raiseViolation, monitoringActive, sessionEnded, terminated])
@@ -382,7 +387,7 @@ export default function Assessment({ sessionData }) {
     if (!monitoringActive || terminated || sessionEnded) return
     const id = setInterval(() => {
       if (!document.hasFocus() && !terminated && !sessionEnded) {
-        raiseViolation('focus_loss', 'You moved away from this window. Return to the interview immediately — switching to another window or screen is a violation and may close your interview.')
+        raiseViolation('focus_loss', 'You moved away from this window. Return to the interview immediately - switching to another window or screen is a violation and may close your interview.')
       }
     }, 1000)
     return () => clearInterval(id)
@@ -392,7 +397,7 @@ export default function Assessment({ sessionData }) {
     const h = () => {
       const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement)
       setIsFullscreen(isFS)
-      if (!isFS && agentLoaded && !terminated && !sessionEnded) raiseViolation('fullscreen_exit', 'You exited fullscreen mode. Click the fullscreen button to return — continuing outside fullscreen is a violation and may close your interview.')
+      if (!isFS && agentLoaded && !terminated && !sessionEnded) raiseViolation('fullscreen_exit', 'You exited fullscreen mode. Click the fullscreen button to return - continuing outside fullscreen is a violation and may close your interview.')
     }
     document.addEventListener('fullscreenchange', h)
     document.addEventListener('webkitfullscreenchange', h)
@@ -402,7 +407,7 @@ export default function Assessment({ sessionData }) {
   useEffect(() => {
     const block = e => e.preventDefault()
     const blockKeys = e => {
-      if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(e.key)) || (e.ctrlKey && e.key === 'u') || (e.ctrlKey && e.key === 'w')) {
+      if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && ['I', 'J', 'C'].includes(e.key)) || (e.ctrlKey && e.key === 'u') || (e.ctrlKey && e.key === 'w')) {
         e.preventDefault()
         raiseViolation('devtools', 'Developer tools usage is not permitted during the interview.')
       }
@@ -419,7 +424,7 @@ export default function Assessment({ sessionData }) {
 
     const check = () => {
       const isOpen =
-        window.outerWidth  - window.innerWidth  > THRESHOLD ||
+        window.outerWidth - window.innerWidth > THRESHOLD ||
         window.outerHeight - window.innerHeight > THRESHOLD
       setDevToolsOpen(isOpen)
       if (isOpen && !devToolsOpenRef.current) {
@@ -437,11 +442,7 @@ export default function Assessment({ sessionData }) {
   }, [raiseViolation, terminated, sessionEnded])
 
   useEffect(() => {
-    // Fullscreen is already enforced on the Instructions page — start session directly.
-    // If fullscreen was somehow lost in transit the reminder strip + violation handles it.
     startPreviewSession()
-    // Activate focus/window-switch monitoring after a short grace period to avoid
-    // false positives from the browser's own focus handoff during page navigation.
     const monitorTimer = setTimeout(() => setMonitoringActive(true), 4000)
     return () => {
       clearTimeout(monitorTimer)
@@ -458,7 +459,7 @@ export default function Assessment({ sessionData }) {
       const isExtended = !!(window.screen?.isExtended)
       setExtraScreen(isExtended)
       if (isExtended && monitoringActive && !terminated && !sessionEnded) {
-        raiseViolation('multi_screen', 'A second screen was detected. Please disconnect it immediately — using multiple screens is a violation and will close your interview.')
+        raiseViolation('multi_screen', 'A second screen was detected. Please disconnect it immediately - using multiple screens is a violation and will close your interview.')
       }
     }
 
@@ -468,7 +469,7 @@ export default function Assessment({ sessionData }) {
       window.screen.addEventListener('change', onScreenChange)
     }
 
-    // Method 2: getScreenDetails — works without gesture if permission was already granted
+    // Method 2: getScreenDetails - works without gesture if permission was already granted
     if (typeof window.getScreenDetails === 'function') {
       window.getScreenDetails().then(details => {
         screenDetailsRef.current = details
@@ -476,12 +477,12 @@ export default function Assessment({ sessionData }) {
           const hasMultiple = details.screens.length > 1
           setExtraScreen(hasMultiple)
           if (hasMultiple && monitoringActive && !terminated && !sessionEnded) {
-            raiseViolation('multi_screen', 'A second screen was detected. Please disconnect it immediately — using multiple screens is a violation and will close your interview.')
+            raiseViolation('multi_screen', 'A second screen was detected. Please disconnect it immediately - using multiple screens is a violation and will close your interview.')
           }
         }
         onScreensChange()
         details.addEventListener('screenschange', onScreensChange)
-      }).catch(() => {})
+      }).catch(() => { })
     }
 
     return () => {
@@ -493,7 +494,7 @@ export default function Assessment({ sessionData }) {
   useEffect(() => {
     if (!terminated) return
     stopPreviewSession()
-    reportTermination(sessionData?.applicationId).catch(() => {})
+    reportTermination(sessionData?.applicationId).catch(() => { })
     stopAndUpload()
   }, [terminated, stopPreviewSession, stopAndUpload])
   useEffect(() => {
@@ -504,13 +505,41 @@ export default function Assessment({ sessionData }) {
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
   const toggleFullscreen = () => {
-    if (!isFullscreen) containerRef.current?.requestFullscreen?.().catch(() => {})
-    else               document.exitFullscreen?.().catch(() => {})
+    if (!isFullscreen) containerRef.current?.requestFullscreen?.().catch(() => { })
+    else document.exitFullscreen?.().catch(() => { })
   }
 
-  const confirmExit = async () => {
+  const confirmExit = () => {
     setShowExitModal(false)
-    await Promise.all([stopPreviewSession(), stopAndUpload()])
+
+    // Stop voice session fire-and-forget (don't await WebSocket close)
+    const conv = voiceConvRef.current
+    if (conv) {
+      intentionalStopRef.current = true
+      hasInitializedRef.current = false
+      isStartingSessionRef.current = false
+      conv.endSession().catch(() => { })
+    }
+
+    // Finalize recording and upload in background - don't block navigation
+    if (!uploadedRef.current && mediaRecorderRef.current) {
+      uploadedRef.current = true
+      const recorder = mediaRecorderRef.current
+      const appId = sessionData?.applicationId
+      const finish = async () => {
+        if (recorder.state !== 'inactive') {
+          await new Promise(resolve => { recorder.onstop = resolve; recorder.stop() })
+        }
+        const chunks = recordingChunksRef.current
+        if (chunks.length > 0) {
+          const blob = new Blob(chunks, { type: recorder.mimeType || 'video/webm' })
+          uploadRecordingBeacon(appId, blob)
+        }
+      }
+      finish().catch(() => { })
+    }
+
+    // Navigate immediately - no waiting
     sessionStorage.removeItem('interview_session')
     navigate('/')
   }
@@ -530,8 +559,8 @@ export default function Assessment({ sessionData }) {
 
   const violationColor =
     violations === 0 ? 'text-green-400' :
-    violations === 1 ? 'text-yellow-400' :
-    violations === 2 ? 'text-orange-400' : 'text-red-400'
+      violations === 1 ? 'text-yellow-400' :
+        violations === 2 ? 'text-orange-400' : 'text-red-400'
 
   // ── Terminated screen ────────────────────────────────────────────────────────
   if (terminated) {
@@ -615,7 +644,7 @@ export default function Assessment({ sessionData }) {
   // ── Assessment UI ────────────────────────────────────────────────────────────
   return (
     <div ref={containerRef} className="flex flex-col bg-black text-white"
-         style={{ height: '100vh', overflow: 'hidden' }}>
+      style={{ height: '100vh', overflow: 'hidden' }}>
 
       {/* ── Extra Screen Blocking Overlay ─────────────────────────────────────── */}
       {extraScreenDetected && !terminated && !sessionEnded && (
@@ -691,25 +720,18 @@ export default function Assessment({ sessionData }) {
           </div>
         )}
 
-        {/* ── 50/50 split — Aliya (left) | Candidate (right) ───────────── */}
-        <div className="absolute inset-0 flex flex-row z-10">
-          {/* Left half — Aliya */}
-          <div className="w-1/2 h-full relative border-r border-white/10">
-            <AgentVisual isSpeaking={isSpeaking} isConnecting={isConnecting} isMain={true} />
-            <div className="absolute bottom-24 left-5 z-10">
-              <span className="text-xs font-semibold text-white bg-black/50 backdrop-blur-sm
-                               px-2.5 py-1 rounded-lg">
-                Aliya
-              </span>
-            </div>
-          </div>
-          {/* Right half — Candidate */}
-          <div className="w-1/2 h-full relative">
+        {/* ── Aliya fullscreen with candidate PiP ───────────────────── */}
+        <div className="absolute inset-0 z-10">
+          <AgentVisual isSpeaking={isSpeaking} isConnecting={isConnecting} isMain={true} />
+
+          {/* Candidate PiP overlay - bottom right */}
+          <div className="absolute bottom-6 right-6 w-48 h-36 rounded-2xl overflow-hidden
+                          border-2 border-white/20 shadow-2xl z-20 bg-slate-900">
             <CandidateView
               videoRef={videoPipRef}
               cameraError={cameraError}
               candidateName={sessionData.candidateName}
-              isMain={true}
+              isMain={false}
             />
           </div>
         </div>
@@ -760,7 +782,7 @@ export default function Assessment({ sessionData }) {
               <p className="text-sm font-semibold text-slate-800">Violation Detected</p>
               <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{showViolation.msg}</p>
               <p className="text-xs font-semibold text-orange-600 mt-1.5">
-                {violations}/{MAX_VIOLATIONS} warnings — session ends at {MAX_VIOLATIONS}
+                {violations}/{MAX_VIOLATIONS} warnings - session ends at {MAX_VIOLATIONS}
               </p>
             </div>
           </div>

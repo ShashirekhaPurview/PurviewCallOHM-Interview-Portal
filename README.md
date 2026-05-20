@@ -1,4 +1,4 @@
-# Purview Callohm — AI Interview Portal
+# Purview Callohm - AI Interview Portal
 
 A secure, browser-based AI interview portal for Purview's Round 2 technical screening. Candidates conduct a voice interview with an AI agent (Aliya), while the system monitors session integrity in real time.
 
@@ -45,7 +45,7 @@ Candidate receives Application ID
          │
          ▼
 ┌─────────────────────┐
-│  / — Application    │  Candidate enters their Application ID.
+│  / - Application    │  Candidate enters their Application ID.
 │      Entry          │  POST /validate → backend confirms ID is valid
 └────────┬────────────┘  and returns candidate + job details.
          │  (sessionStorage: validated = true)
@@ -82,9 +82,9 @@ Candidate receives Application ID
 
 ### Route Guards
 
-- `/instructions` — requires `sessionData.validated === true`
-- `/assessment` — requires `sessionData.started === true`
-- Any other path — redirects to `/`
+- `/instructions` - requires `sessionData.validated === true`
+- `/assessment` - requires `sessionData.started === true`
+- Any other path - redirects to `/`
 
 ---
 
@@ -99,9 +99,9 @@ purview-callohm-interview-portal/
 │   ├── apis/
 │   │   └── apiService.js       All backend API calls
 │   ├── pages/
-│   │   ├── ApplicationEntry.jsx   Step 1 — ID validation
-│   │   ├── Instructions.jsx       Step 2 — permissions & checklist
-│   │   ├── Assessment.jsx         Step 3 — live AI interview
+│   │   ├── ApplicationEntry.jsx   Step 1 - ID validation
+│   │   ├── Instructions.jsx       Step 2 - permissions & checklist
+│   │   ├── Assessment.jsx         Step 3 - live AI interview
 │   │   └── SessionExpired.jsx     Final / expired screen
 │   └── styles/
 │       └── global.css          Tailwind directives + custom styles

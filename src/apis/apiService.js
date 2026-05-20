@@ -1,7 +1,7 @@
-const BACKEND_URL   = import.meta.env.VITE_BACKEND_URL   || ''
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || ''
 const AGENT_BASE_URL = import.meta.env.VITE_AGENT_BASE_URL || ''
-const AGENT_ID       = import.meta.env.VITE_AGENT_ID       || ''
-const XI_API_KEY     = import.meta.env.VITE_XI_API_KEY     || ''
+const AGENT_ID = import.meta.env.VITE_AGENT_ID || ''
+const XI_API_KEY = import.meta.env.VITE_XI_API_KEY || ''
 
 // ── Internal helper ───────────────────────────────────────────────────────────
 async function request(url, options = {}) {
@@ -121,7 +121,7 @@ export async function reportTermination(applicationId) {
  * POST /recruitment/recordings/{applicationId}
  *
  * @param {string} applicationId
- * @param {Blob}   blob  — WebM recording blob
+ * @param {Blob}   blob  - WebM recording blob
  */
 export async function uploadRecording(applicationId, blob) {
   const formData = new FormData()
@@ -146,7 +146,7 @@ export async function uploadRecording(applicationId, blob) {
 
 /**
  * Best-effort upload on page unload using fetch keepalive.
- * Does not throw — fire and forget.
+ * Does not throw - fire and forget.
  *
  * @param {string} applicationId
  * @param {Blob}   blob
@@ -159,5 +159,5 @@ export function uploadRecordingBeacon(applicationId, blob) {
     headers: { 'accept': 'application/json', 'xi-api-key': XI_API_KEY },
     body: formData,
     keepalive: true,
-  }).catch(() => {})
+  }).catch(() => { })
 }
