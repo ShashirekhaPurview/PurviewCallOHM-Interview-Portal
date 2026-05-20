@@ -6,7 +6,7 @@ import {
   Clock, Wifi, XCircle, ChevronRight, Loader2,
   Bot, Volume2, CheckCircle2, VideoOff,
 } from 'lucide-react'
-import { getAgentSignedUrl, reportTermination, uploadRecording, uploadRecordingBeacon } from '../apis/apiService'
+import { getAgentSignedUrl, reportTermination, uploadRecording, uploadRecordingWithProgress } from '../apis/apiService'
 
 const MAX_VIOLATIONS = 3
 
@@ -172,6 +172,8 @@ export default function Assessment({ sessionData }) {
   const [extraScreenDetected, setExtraScreen] = useState(false)
   const [monitoringActive, setMonitoringActive] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadError, setUploadError] = useState('')
 
   const containerRef = useRef(null)
   const toastTimerRef = useRef(null)
@@ -222,15 +224,15 @@ export default function Assessment({ sessionData }) {
     try {
       const recorder = new MediaRecorder(stream, {
         mimeType,
-        videoBitsPerSecond: 250000,  // 250 kbps — ~37MB for 10 min
-        audioBitsPerSecond: 32000,   // 32 kbps — sufficient for speech
+        videoBitsPerSecond: 500000,  // 500 kbps — ~56MB for 15 min
+        audioBitsPerSecond: 64000,   // 64 kbps — high quality speech
       })
       mediaRecorderRef.current = recorder
       recordingChunksRef.current = []
       recorder.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) recordingChunksRef.current.push(e.data)
       }
-      recorder.start(1000)
+      recorder.start(5000) // 5-second chunks — less overhead, final chunk at most 5s old
     } catch { /* recording unavailable - interview continues */ }
   }, [])
 
@@ -244,6 +246,7 @@ export default function Assessment({ sessionData }) {
       await new Promise((resolve) => {
         if (recorder.state === 'inactive') { resolve(); return }
         recorder.onstop = resolve
+        if (recorder.state === 'recording') recorder.requestData() // flush current chunk
         recorder.stop()
       })
       const chunks = recordingChunksRef.current
@@ -362,7 +365,12 @@ export default function Assessment({ sessionData }) {
         const blob = new Blob(recordingChunksRef.current, {
           type: recorder?.mimeType || 'video/webm',
         })
-        uploadRecordingBeacon(sessionData?.applicationId, blob)
+        fetch(`${import.meta.env.VITE_BACKEND_URL || ''}/recruitment/recordings/${sessionData?.applicationId}`, {
+          method: 'POST',
+          headers: { 'accept': 'application/json', 'xi-api-key': import.meta.env.VITE_XI_API_KEY || '' },
+          body: (() => { const f = new FormData(); f.append('file', blob, `${sessionData?.applicationId}_recording.webm`); return f })(),
+          keepalive: true,
+        }).catch(() => { })
       }
       return e.returnValue
     }
@@ -509,10 +517,13 @@ export default function Assessment({ sessionData }) {
     else document.exitFullscreen?.().catch(() => { })
   }
 
-  const confirmExit = () => {
+  const confirmExit = async () => {
     setShowExitModal(false)
+    setIsUploading(true)
+    setUploadProgress(0)
+    setUploadError('')
 
-    // Stop voice session fire-and-forget (don't await WebSocket close)
+    // Stop voice (fire and forget — don't block on WebSocket close)
     const conv = voiceConvRef.current
     if (conv) {
       intentionalStopRef.current = true
@@ -521,27 +532,36 @@ export default function Assessment({ sessionData }) {
       conv.endSession().catch(() => { })
     }
 
-    // Finalize recording and upload in background - don't block navigation
+    // Finalize recorder — flush in-progress chunk then stop
     if (!uploadedRef.current && mediaRecorderRef.current) {
       uploadedRef.current = true
       const recorder = mediaRecorderRef.current
       const appId = sessionData?.applicationId
-      const finish = async () => {
-        if (recorder.state !== 'inactive') {
-          await new Promise(resolve => { recorder.onstop = resolve; recorder.stop() })
-        }
-        const chunks = recordingChunksRef.current
-        if (chunks.length > 0) {
-          const blob = new Blob(chunks, { type: recorder.mimeType || 'video/webm' })
-          uploadRecordingBeacon(appId, blob)
+
+      if (recorder.state !== 'inactive') {
+        await new Promise(resolve => {
+          recorder.onstop = resolve
+          if (recorder.state === 'recording') recorder.requestData()
+          recorder.stop()
+        })
+      }
+
+      const chunks = recordingChunksRef.current
+      if (chunks.length > 0) {
+        const blob = new Blob(chunks, { type: recorder.mimeType || 'video/webm' })
+        try {
+          await uploadRecordingWithProgress(appId, blob, setUploadProgress)
+          setUploadProgress(100)
+        } catch (err) {
+          setUploadError(err?.message || 'Upload failed. Please try again.')
+          return  // stay on page so user can retry
         }
       }
-      finish().catch(() => { })
     }
 
-    // Navigate immediately - no waiting
+    // Upload done (or nothing to upload) — navigate
     sessionStorage.removeItem('interview_session')
-    navigate('/')
+    navigate('/session-complete')
   }
 
   const handleRetryPreview = async () => {
@@ -554,7 +574,7 @@ export default function Assessment({ sessionData }) {
   const handleTerminatedClose = async () => {
     await stopPreviewSession()
     sessionStorage.removeItem('interview_session')
-    navigate('/')
+    navigate('/session-complete')
   }
 
   const violationColor =
@@ -818,6 +838,59 @@ export default function Assessment({ sessionData }) {
         </div>
       )}
 
+      {/* ── Upload Progress Overlay ───────────────────────────────────────────── */}
+      {isUploading && (
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-sm z-[9999]
+                        flex flex-col items-center justify-center gap-6 p-8">
+          <div className="text-5xl select-none">📤</div>
+
+          <div className="text-center max-w-sm">
+            <h2 className="text-white text-xl font-extrabold mb-2 tracking-tight">
+              {uploadError ? 'Upload Failed' : uploadProgress === 100 ? 'Upload Complete!' : 'Saving Your Recording'}
+            </h2>
+            <p className="text-white/55 text-sm leading-relaxed">
+              {uploadError
+                ? uploadError
+                : uploadProgress === 100
+                  ? 'All done — taking you to the completion page…'
+                  : 'Please keep this window open. Your interview is being saved to our servers.'}
+            </p>
+          </div>
+
+          {!uploadError && (
+            <div className="w-full max-w-sm space-y-2">
+              <div className="flex justify-between text-xs text-white/50 font-medium">
+                <span>Uploading interview recording…</span>
+                <span>{uploadProgress}%</span>
+              </div>
+              <div className="h-2.5 w-full rounded-full bg-white/10 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-blue-500 transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {uploadError && (
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setUploadError(''); setIsUploading(false) }}
+                className="px-5 py-2.5 rounded-xl border border-white/20 text-white/70
+                           text-sm font-semibold hover:bg-white/10 transition-colors">
+                Cancel
+              </button>
+              <button
+                onClick={() => { setUploadError(''); confirmExit() }}
+                className="px-5 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600
+                           text-white text-sm font-semibold transition-colors">
+                Retry Upload
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Exit Confirmation Modal ───────────────────────────────────────────── */}
       {showExitModal && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50
@@ -848,10 +921,13 @@ export default function Assessment({ sessionData }) {
                            text-sm text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all">
                 Continue Interview
               </button>
-              <button onClick={confirmExit}
+              <button onClick={confirmExit} disabled={isUploading}
                 className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 font-semibold
-                           text-sm text-white transition-all hover:shadow-[0_4px_14px_-4px_rgba(239,68,68,0.5)]">
-                Yes, End Session
+                           text-sm text-white transition-all hover:shadow-[0_4px_14px_-4px_rgba(239,68,68,0.5)]
+                           disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-2">
+                {isUploading
+                  ? <><Loader2 size={14} className="animate-spin" /> Saving…</>
+                  : 'Yes, End Session'}
               </button>
             </div>
           </div>

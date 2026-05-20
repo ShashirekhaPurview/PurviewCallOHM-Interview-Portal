@@ -4,6 +4,7 @@ import ApplicationEntry from './pages/ApplicationEntry'
 import Instructions from './pages/Instructions'
 import Assessment from './pages/Assessment'
 import SessionExpired from './pages/SessionExpired'
+import SessionComplete from './pages/SessionComplete'
 
 export default function App() {
   const [sessionData, setSessionData] = useState(() => {
@@ -50,6 +51,7 @@ export default function App() {
           }
         />
         <Route path="/session-expired" element={<SessionExpired />} />
+        <Route path="/session-complete" element={<SessionComplete />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

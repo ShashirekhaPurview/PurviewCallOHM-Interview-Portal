@@ -145,19 +145,37 @@ export async function uploadRecording(applicationId, blob) {
 }
 
 /**
- * Best-effort upload on page unload using fetch keepalive.
- * Does not throw - fire and forget.
+ * Uploads with real XHR progress events.
+ * Resolves with the parsed JSON response.
+ * onProgress receives 0-100 integer.
  *
- * @param {string} applicationId
- * @param {Blob}   blob
+ * @param {string}   applicationId
+ * @param {Blob}     blob
+ * @param {function} onProgress
  */
-export function uploadRecordingBeacon(applicationId, blob) {
-  const formData = new FormData()
-  formData.append('file', blob, `${applicationId}_recording.webm`)
-  fetch(`${BACKEND_URL}/recruitment/recordings/${applicationId}`, {
-    method: 'POST',
-    headers: { 'accept': 'application/json', 'xi-api-key': XI_API_KEY },
-    body: formData,
-    keepalive: true,
-  }).catch(() => { })
+export function uploadRecordingWithProgress(applicationId, blob, onProgress) {
+  return new Promise((resolve, reject) => {
+    const formData = new FormData()
+    formData.append('file', blob, `${applicationId}_recording.webm`)
+
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `${BACKEND_URL}/recruitment/recordings/${applicationId}`)
+    xhr.setRequestHeader('accept', 'application/json')
+    xhr.setRequestHeader('xi-api-key', XI_API_KEY)
+    xhr.timeout = 120000 // 2 min
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress?.(Math.round((e.loaded / e.total) * 100))
+    }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { resolve(JSON.parse(xhr.responseText)) } catch { resolve({}) }
+      } else {
+        reject(new Error(`Upload failed: ${xhr.status}`))
+      }
+    }
+    xhr.onerror = () => reject(new Error('Network error'))
+    xhr.ontimeout = () => reject(new Error('Upload timed out'))
+    xhr.send(formData)
+  })
 }
