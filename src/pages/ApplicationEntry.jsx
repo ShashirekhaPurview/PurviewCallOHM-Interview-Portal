@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowRight, AlertCircle, ShieldCheck, Loader2 } from 'lucide-react'
-import { validateApplication } from '../apis/apiService'
+import { validateApplication, getApplicationStatus } from '../apis/apiService'
 
 export default function ApplicationEntry({ onValidated }) {
   const navigate = useNavigate()
@@ -17,15 +17,44 @@ export default function ApplicationEntry({ onValidated }) {
     setLoading(true)
     try {
       const res = await validateApplication(trimmed)
+
+      // Fetch status to decide whether to skip the AI interview
+      let status = null
+      try {
+        status = await getApplicationStatus(res.job_id, res.application_id)
+      } catch {
+        // If status fetch fails, fall through to the normal flow
+      }
+
+      const CODING_STATUSES = [
+        'technical_complete',
+        'technical_coding_in_progress',
+        'technical_coding_incomplete',
+      ]
+      const DONE_STATUSES = [
+        'technical_coding_complete',
+        'technical_coding_rejected',
+        'technical_coding_violated',
+      ]
+
+      if (DONE_STATUSES.includes(status)) {
+        setError('This interview has already been completed.')
+        return
+      }
+
+      const skipToCode = CODING_STATUSES.includes(status)
+
       onValidated({
         applicationId: res.application_id,
         candidateId: res.candidate_id,
         jobId: res.job_id,
         candidateName: res.full_name,
         validated: res.success,
-        started: false,
+        applicationStatus: status,
+        started: skipToCode,
       })
-      navigate('/instructions')
+
+      navigate(skipToCode ? '/coding-round' : '/instructions')
     } catch (err) {
       setError(err.message || 'Validation failed. Please try again.')
     } finally {

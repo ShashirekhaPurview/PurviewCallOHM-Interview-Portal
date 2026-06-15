@@ -1,17 +1,18 @@
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || ''
-const AGENT_BASE_URL = import.meta.env.VITE_AGENT_BASE_URL || ''
+const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/$/, '')
 const AGENT_ID = import.meta.env.VITE_AGENT_ID || ''
 const XI_API_KEY = import.meta.env.VITE_XI_API_KEY || ''
 
 // ── Internal helper ───────────────────────────────────────────────────────────
 async function request(url, options = {}) {
+  const { headers: optHeaders, ...restOptions } = options
   const res = await fetch(url, {
     headers: {
       'accept': 'application/json',
       'xi-api-key': XI_API_KEY,
-      ...options.headers,
+      'ngrok-skip-browser-warning': 'true',
+      ...optHeaders,
     },
-    ...options,
+    ...restOptions,
   })
 
   if (!res.ok) {
@@ -24,15 +25,24 @@ async function request(url, options = {}) {
 
 // ── Application ───────────────────────────────────────────────────────────────
 
+export async function getApplicationStatus(jobId, applicationId) {
+  const data = await request(
+    `${BACKEND_URL}/recruitment/applications/jobs/${jobId}/applications?limit=50&offset=0`
+  )
+  const app = data.items?.find(item => item.application_id === applicationId)
+  if (!app) throw new Error('Application not found.')
+  return app.status
+}
+
 /**
  * Validates the candidate's application ID.
- * POST /recruitment/agents/round2/validate/{applicationId}
+ * POST /recruitment/agents/technical/validate/{applicationId}
  *
  * @param {string} applicationId
  * @returns {{ detail: string } | object}
  */
 export async function validateApplication(applicationId) {
-  return request(`${BACKEND_URL}/recruitment/agents/round2/validate/${applicationId}`, {
+  return request(`${BACKEND_URL}/recruitment/agents/technical/validate/${applicationId}`, {
     method: 'POST',
   })
 }
@@ -47,12 +57,13 @@ export async function validateApplication(applicationId) {
  */
 export async function getAgentSignedUrl() {
   const res = await fetch(
-    `${AGENT_BASE_URL}/redirect/v1/convai/conversation/get_signed_url?agent_id=${AGENT_ID}`,
+    `${BACKEND_URL}/redirect/v1/convai/conversation/get_signed_url?agent_id=${AGENT_ID}`,
     {
       method: 'GET',
       headers: {
         'xi-api-key': XI_API_KEY,
         'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',
       },
     }
   )
@@ -69,7 +80,7 @@ export async function getAgentSignedUrl() {
  * @param {string} applicationId
  */
 export async function startSession(applicationId) {
-  return request(`${BACKEND_URL}/recruitment/agents/round2/session/start/${applicationId}`, {
+  return request(`${BACKEND_URL}/recruitment/agents/technical/session/start/${applicationId}`, {
     method: 'POST',
   })
 }
@@ -81,7 +92,7 @@ export async function startSession(applicationId) {
  * @param {{ type: string, message: string, timestamp: string }} violation
  */
 export async function reportViolation(applicationId, violation) {
-  return request(`${BACKEND_URL}/recruitment/agents/round2/session/violation/${applicationId}`, {
+  return request(`${BACKEND_URL}/recruitment/agents/technical/session/violation/${applicationId}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(violation),
@@ -95,7 +106,7 @@ export async function reportViolation(applicationId, violation) {
  * @param {'completed' | 'terminated' | 'exited'} reason
  */
 export async function endSession(applicationId, reason) {
-  return request(`${BACKEND_URL}/recruitment/agents/round2/session/end/${applicationId}`, {
+  return request(`${BACKEND_URL}/recruitment/agents/technical/session/end/${applicationId}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reason }),
@@ -104,12 +115,12 @@ export async function endSession(applicationId, reason) {
 
 /**
  * Flags the application as Round 2 violated when the session is terminated.
- * POST /recruitment/agents/round2/violate/{applicationId}
+ * POST /recruitment/agents/technical/violate/{applicationId}
  *
  * @param {string} applicationId
  */
 export async function reportTermination(applicationId) {
-  return request(`${BACKEND_URL}/recruitment/agents/round2/violate/${applicationId}`, {
+  return request(`${BACKEND_URL}/recruitment/agents/technical/violate/${applicationId}`, {
     method: 'POST',
   })
 }
@@ -132,6 +143,7 @@ export async function uploadRecording(applicationId, blob) {
     headers: {
       'accept': 'application/json',
       'xi-api-key': XI_API_KEY,
+      'ngrok-skip-browser-warning': 'true',
     },
     body: formData,
   })
@@ -162,6 +174,7 @@ export function uploadRecordingWithProgress(applicationId, blob, onProgress) {
     xhr.open('POST', `${BACKEND_URL}/recruitment/recordings/${applicationId}`)
     xhr.setRequestHeader('accept', 'application/json')
     xhr.setRequestHeader('xi-api-key', XI_API_KEY)
+    xhr.setRequestHeader('ngrok-skip-browser-warning', 'true')
     xhr.timeout = 120000 // 2 min
 
     xhr.upload.onprogress = (e) => {
@@ -177,5 +190,31 @@ export function uploadRecordingWithProgress(applicationId, blob, onProgress) {
     xhr.onerror = () => reject(new Error('Network error'))
     xhr.ontimeout = () => reject(new Error('Upload timed out'))
     xhr.send(formData)
+  })
+}
+
+// ── Compiler ──────────────────────────────────────────────────────────────────
+
+export async function getCompilerLanguages() {
+  return request(`${BACKEND_URL}/recruitment/compiler/languages`)
+}
+
+export async function getCodingQuestions(applicationId) {
+  return request(`${BACKEND_URL}/recruitment/compiler/${applicationId}`)
+}
+
+export async function runCode(applicationId, { question_index, language_id, source_code }) {
+  return request(`${BACKEND_URL}/recruitment/compiler/run/${applicationId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question_index, language_id, source_code, custom_test_cases: [] }),
+  })
+}
+
+export async function submitCode(applicationId, { question_index, language_id, language_name, source_code }) {
+  return request(`${BACKEND_URL}/recruitment/compiler/submit/${applicationId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question_index, language_id, language_name, source_code }),
   })
 }

@@ -367,7 +367,7 @@ export default function Assessment({ sessionData }) {
         })
         fetch(`${import.meta.env.VITE_BACKEND_URL || ''}/recruitment/recordings/${sessionData?.applicationId}`, {
           method: 'POST',
-          headers: { 'accept': 'application/json', 'xi-api-key': import.meta.env.VITE_XI_API_KEY || '' },
+          headers: { 'accept': 'application/json', 'xi-api-key': import.meta.env.VITE_XI_API_KEY || '', 'ngrok-skip-browser-warning': 'true' },
           body: (() => { const f = new FormData(); f.append('file', blob, `${sessionData?.applicationId}_recording.webm`); return f })(),
           keepalive: true,
         }).catch(() => { })
@@ -508,8 +508,29 @@ export default function Assessment({ sessionData }) {
   useEffect(() => {
     if (!sessionEnded) return
     stopPreviewSession()
-    stopAndUpload()
-  }, [sessionEnded, stopPreviewSession, stopAndUpload])
+    // Upload in background — SPA keeps in-flight XHR alive through navigation
+    if (!uploadedRef.current && mediaRecorderRef.current) {
+      uploadedRef.current = true
+      const recorder = mediaRecorderRef.current
+      const appId    = sessionData?.applicationId
+      ;(async () => {
+        try {
+          if (recorder.state !== 'inactive') {
+            await new Promise(resolve => {
+              recorder.onstop = resolve
+              if (recorder.state === 'recording') recorder.requestData()
+              recorder.stop()
+            })
+          }
+          const chunks = recordingChunksRef.current
+          if (chunks.length > 0) {
+            const blob = new Blob(chunks, { type: recorder.mimeType || 'video/webm' })
+            await uploadRecording(appId, blob)
+          }
+        } catch { /* best effort */ }
+      })()
+    }
+  }, [sessionEnded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
   const toggleFullscreen = () => {
@@ -622,39 +643,22 @@ export default function Assessment({ sessionData }) {
     )
   }
 
-  // ── Session ended screen ─────────────────────────────────────────────────────
+  // ── Session ended: continue to coding round ──────────────────────────────────
   if (sessionEnded) {
     return (
       <div className="min-h-screen bg-navy-950 flex items-center justify-center p-6">
-        <div className="bg-white rounded-2xl shadow-card-xl max-w-md w-full p-10 text-center animate-fade-up relative">
-          <button onClick={handleTerminatedClose}
-            className="absolute top-4 right-4 w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200
-                       flex items-center justify-center text-slate-500 hover:text-slate-700 transition-colors">
-            <XCircle size={18} />
-          </button>
-          <div className="w-16 h-16 rounded-2xl bg-green-100 flex items-center justify-center mx-auto mb-5">
-            <CheckCircle2 size={28} className="text-green-600" />
-          </div>
-          <h2 className="text-xl font-extrabold text-slate-900 mb-2">Interview Completed</h2>
-          <p className="text-slate-500 text-sm leading-relaxed mb-6">
-            Your AI interview session has ended successfully. Your responses have been captured and shared with the hiring team.
+        <div className="bg-white rounded-2xl shadow-card-xl max-w-md w-full p-10 text-center animate-fade-up">
+          <div className="text-5xl mb-6 select-none">💻</div>
+          <h2 className="text-xl font-extrabold text-slate-900 mb-3">
+            Please continue with the Coding Round
+          </h2>
+          <p className="text-slate-500 text-sm leading-relaxed mb-8">
+            You have 30 minutes to complete the coding questions. Click below when you're ready to begin.
           </p>
-          <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
-            <p className="text-green-700 text-xs font-semibold">Session duration: {formatTime(elapsed)}</p>
-          </div>
-          {isUploading ? (
-            <div className="flex items-center justify-center gap-2 text-slate-400 text-xs mb-6">
-              <Loader2 size={13} className="animate-spin" />
-              Uploading recording… please wait
-            </div>
-          ) : (
-            <p className="text-slate-400 text-xs mb-6">
-              You can close this window. The recruiter will contact you if anything else is needed.
-            </p>
-          )}
-          <button onClick={handleTerminatedClose} disabled={isUploading}
-            className="w-full py-3 rounded-xl bg-navy-800 hover:bg-navy-700 font-semibold text-sm text-white transition-all disabled:opacity-50 disabled:cursor-wait">
-            {isUploading ? 'Please wait…' : 'Close Session'}
+          <button onClick={() => navigate('/coding-round')}
+            className="w-full py-3 rounded-xl bg-navy-800 hover:bg-navy-700 font-semibold text-sm text-white
+                       transition-all flex items-center justify-center gap-2">
+            Start Coding Round <ChevronRight size={16} />
           </button>
         </div>
       </div>
