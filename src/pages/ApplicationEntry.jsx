@@ -31,6 +31,7 @@ export default function ApplicationEntry({ onValidated }) {
         candidateName:     res.full_name,
         validated:         res.success,
         applicationStatus: res.round,
+        codingEnabled:     res.coding_enabled === true,
         started:           goToCoding,
       })
 

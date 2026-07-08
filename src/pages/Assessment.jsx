@@ -643,22 +643,35 @@ export default function Assessment({ sessionData }) {
     )
   }
 
-  // ── Session ended: interview complete ────────────────────────────────────────
+  // ── Session ended ─────────────────────────────────────────────────────────────
+  // A coding round follows only when the backend flagged `coding_enabled` at
+  // validation. Otherwise this is an interview-only (HR) round → go to completion.
   if (sessionEnded) {
+    const hasCoding = !!sessionData?.codingEnabled
     return (
       <div className="min-h-screen bg-navy-950 flex items-center justify-center p-6">
         <div className="bg-white rounded-2xl shadow-card-xl max-w-md w-full p-10 text-center animate-fade-up">
-          <div className="text-5xl mb-6 select-none">✅</div>
+          <div className="text-5xl mb-6 select-none">{hasCoding ? '💻' : '✅'}</div>
           <h2 className="text-xl font-extrabold text-slate-900 mb-3">
-            Interview Complete
+            {hasCoding ? 'Please continue with the Coding Round' : 'Interview Complete'}
           </h2>
           <p className="text-slate-500 text-sm leading-relaxed mb-8">
-            Thank you for completing your interview. Your responses have been recorded and shared with the hiring team.
+            {hasCoding
+              ? "You have 30 minutes to complete the coding questions. Click below when you're ready to begin."
+              : 'Thank you for completing your interview. Your responses have been recorded and shared with the hiring team.'}
           </p>
-          <button onClick={() => { sessionStorage.removeItem('interview_session'); navigate('/session-complete') }}
+          <button
+            onClick={() => {
+              if (hasCoding) {
+                navigate('/coding-round')
+              } else {
+                sessionStorage.removeItem('interview_session')
+                navigate('/session-complete')
+              }
+            }}
             className="w-full py-3 rounded-xl bg-navy-800 hover:bg-navy-700 font-semibold text-sm text-white
                        transition-all flex items-center justify-center gap-2">
-            Finish <ChevronRight size={16} />
+            {hasCoding ? 'Start Coding Round' : 'Finish'} <ChevronRight size={16} />
           </button>
         </div>
       </div>

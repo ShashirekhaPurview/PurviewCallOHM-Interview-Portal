@@ -2,9 +2,9 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Clock, CheckCircle2, Code2, Play, Send, Loader2,
-  ChevronDown, Terminal, XCircle, AlertTriangle,
+  ChevronDown, ChevronUp, Terminal, XCircle, AlertTriangle,
   Maximize2, Minimize2, ShieldX, MonitorX, Sun, Moon,
-  LogOut,
+  LogOut, PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react'
 import { getCodingQuestions, getCompilerLanguages, runCode, submitCode, reportCodingViolation, collectCodingRound } from '../apis/apiService'
 import CodeMirror from '@uiw/react-codemirror'
@@ -148,6 +148,12 @@ export default function CodingRound({ sessionData }) {
   const [showEndConfirm, setShowEndConfirm] = useState(false)
   const [endingRound, setEndingRound]       = useState(false)
   const [roundStarted, setRoundStarted]     = useState(false)
+
+  // ── Resizable / collapsible panels (VS Code–style) ───────────────────────────
+  const [leftWidth, setLeftWidth]             = useState(384)  // px, default 24rem
+  const [leftCollapsed, setLeftCollapsed]     = useState(false)
+  const [outputHeight, setOutputHeight]       = useState(192)  // px, default h-48
+  const [outputCollapsed, setOutputCollapsed] = useState(false)
 
   // Language extension for CodeMirror.
   const langExtension = useMemo(() => {
@@ -346,6 +352,47 @@ export default function CodingRound({ sessionData }) {
     const m   = String(Math.floor(s / 60)).padStart(2, '0')
     const sec = String(s % 60).padStart(2, '0')
     return `${m}:${sec}`
+  }
+
+  // ── Panel resizing: drag the dividers (VS Code–style) ────────────────────────
+  const startLeftResize = (e) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startW = leftWidth
+    document.body.style.userSelect = 'none'
+    document.body.style.cursor     = 'col-resize'
+    const onMove = (ev) => {
+      const next = startW + (ev.clientX - startX)
+      setLeftWidth(Math.min(Math.max(next, 240), Math.min(window.innerWidth - 360, 720)))
+    }
+    const onUp = () => {
+      document.body.style.userSelect = ''
+      document.body.style.cursor     = ''
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  const startOutputResize = (e) => {
+    e.preventDefault()
+    const startY = e.clientY
+    const startH = outputHeight
+    document.body.style.userSelect = 'none'
+    document.body.style.cursor     = 'row-resize'
+    const onMove = (ev) => {
+      const next = startH - (ev.clientY - startY)   // drag up → taller
+      setOutputHeight(Math.min(Math.max(next, 80), Math.min(window.innerHeight - 220, 640)))
+    }
+    const onUp = () => {
+      document.body.style.userSelect = ''
+      document.body.style.cursor     = ''
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
   }
 
   const currentLang    = languages.find(l => l.id === selectedLangId)
@@ -777,8 +824,23 @@ export default function CodingRound({ sessionData }) {
       {/* ── Main layout ──────────────────────────────────────────────────────── */}
       <div className="flex-1 flex overflow-hidden">
 
+        {/* ── Collapsed left rail (click to reopen) ───────────────────────── */}
+        {leftCollapsed && (
+          <div className="w-10 flex-shrink-0 bg-white border-r border-slate-200 flex flex-col items-center py-3 gap-3">
+            <button onClick={() => setLeftCollapsed(false)} title="Show problems"
+              className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors">
+              <PanelLeftOpen size={15} />
+            </button>
+            <span className="[writing-mode:vertical-rl] text-[11px] font-bold text-slate-400 tracking-wider select-none">
+              Problems
+            </span>
+          </div>
+        )}
+
         {/* ── Left panel: Questions + Detail ──────────────────────────────── */}
-        <aside className="w-[24rem] flex-shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-hidden">
+        <aside
+          className={`${leftCollapsed ? 'hidden' : 'flex'} flex-shrink-0 bg-white border-r border-slate-200 flex-col overflow-hidden`}
+          style={{ width: leftCollapsed ? 0 : leftWidth }}>
 
           <div className="px-4 py-3 border-b border-slate-100 bg-white flex-shrink-0">
             <div className="flex items-center justify-between mb-2">
@@ -786,7 +848,13 @@ export default function CodingRound({ sessionData }) {
                 <Code2 size={14} className="text-blue-600" />
                 <span className="text-sm font-extrabold text-slate-900">Problems</span>
               </div>
-              <span className="text-[11px] font-bold text-slate-500">{submittedCount}/{questions.length}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-slate-500">{submittedCount}/{questions.length}</span>
+                <button onClick={() => setLeftCollapsed(true)} title="Hide panel"
+                  className="w-6 h-6 rounded-md hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
+                  <PanelLeftClose size={14} />
+                </button>
+              </div>
             </div>
             <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
               <div
@@ -909,8 +977,15 @@ export default function CodingRound({ sessionData }) {
           )}
         </aside>
 
+        {/* ── Left/editor drag divider ────────────────────────────────────── */}
+        {!leftCollapsed && (
+          <div onMouseDown={startLeftResize}
+            title="Drag to resize"
+            className="w-1.5 flex-shrink-0 cursor-col-resize bg-slate-200 hover:bg-blue-400 active:bg-blue-500 transition-colors" />
+        )}
+
         {/* ── Right panel: Editor ──────────────────────────────────────────── */}
-        <main className="flex-1 flex flex-col overflow-hidden">
+        <main className="flex-1 flex flex-col overflow-hidden min-w-0">
 
           {/* Toolbar */}
           <div className="flex-shrink-0 bg-[#1e293b] border-b border-slate-700 px-4 py-2
@@ -980,20 +1055,36 @@ export default function CodingRound({ sessionData }) {
             />
           </div>
 
+          {/* Editor/output drag divider */}
+          {!outputCollapsed && (
+            <div onMouseDown={startOutputResize}
+              title="Drag to resize"
+              className="h-1.5 flex-shrink-0 cursor-row-resize bg-slate-700 hover:bg-blue-500 active:bg-blue-500 transition-colors" />
+          )}
+
           {/* Output panel */}
-          <div className="flex-shrink-0 h-48 bg-[#1a1a2e] border-t border-slate-700 flex flex-col overflow-hidden">
+          <div className="flex-shrink-0 bg-[#1a1a2e] border-t border-slate-700 flex flex-col overflow-hidden"
+               style={{ height: outputCollapsed ? undefined : outputHeight }}>
             <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-700/60 bg-[#16213e] flex-shrink-0">
               <Terminal size={12} className="text-slate-400" />
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Output</span>
-              {(runResults || runError || submitMsg) && (
-                <button onClick={() => { setRunResults(null); setResultMeta(null); setRunError(''); setSubmitMsg('') }}
-                  title="Clear output"
-                  className="ml-auto text-slate-500 hover:text-slate-300 transition-colors">
-                  <XCircle size={12} />
+              <div className="ml-auto flex items-center gap-2.5">
+                {(runResults || runError || submitMsg) && !outputCollapsed && (
+                  <button onClick={() => { setRunResults(null); setResultMeta(null); setRunError(''); setSubmitMsg('') }}
+                    title="Clear output"
+                    className="text-slate-500 hover:text-slate-300 transition-colors">
+                    <XCircle size={12} />
+                  </button>
+                )}
+                <button onClick={() => setOutputCollapsed(c => !c)}
+                  title={outputCollapsed ? 'Expand output' : 'Collapse output'}
+                  className="text-slate-500 hover:text-slate-300 transition-colors">
+                  {outputCollapsed ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 </button>
-              )}
+              </div>
             </div>
 
+            {!outputCollapsed && (
             <div className="flex-1 overflow-y-auto p-3 space-y-2">
               {!isRunning && !runResults && !runError && !submitMsg && (
                 <p className="text-xs text-slate-500 italic">Run your code to see results here.</p>
@@ -1123,6 +1214,7 @@ export default function CodingRound({ sessionData }) {
                   )
               )}
             </div>
+            )}
           </div>
         </main>
       </div>
