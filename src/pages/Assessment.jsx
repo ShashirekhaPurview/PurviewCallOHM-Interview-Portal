@@ -224,15 +224,15 @@ export default function Assessment({ sessionData }) {
     try {
       const recorder = new MediaRecorder(stream, {
         mimeType,
-        videoBitsPerSecond: 500000,  // 500 kbps — ~56MB for 15 min
-        audioBitsPerSecond: 64000,   // 64 kbps — high quality speech
+        videoBitsPerSecond: 500000,  // 500 kbps - ~56MB for 15 min
+        audioBitsPerSecond: 64000,   // 64 kbps - high quality speech
       })
       mediaRecorderRef.current = recorder
       recordingChunksRef.current = []
       recorder.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) recordingChunksRef.current.push(e.data)
       }
-      recorder.start(5000) // 5-second chunks — less overhead, final chunk at most 5s old
+      recorder.start(5000) // 5-second chunks - less overhead, final chunk at most 5s old
     } catch { /* recording unavailable - interview continues */ }
   }, [])
 
@@ -508,7 +508,7 @@ export default function Assessment({ sessionData }) {
   useEffect(() => {
     if (!sessionEnded) return
     stopPreviewSession()
-    // Upload in background — SPA keeps in-flight XHR alive through navigation
+    // Upload in background - SPA keeps in-flight XHR alive through navigation
     if (!uploadedRef.current && mediaRecorderRef.current) {
       uploadedRef.current = true
       const recorder = mediaRecorderRef.current
@@ -544,7 +544,7 @@ export default function Assessment({ sessionData }) {
     setUploadProgress(0)
     setUploadError('')
 
-    // Stop voice (fire and forget — don't block on WebSocket close)
+    // Stop voice (fire and forget - don't block on WebSocket close)
     const conv = voiceConvRef.current
     if (conv) {
       intentionalStopRef.current = true
@@ -553,7 +553,7 @@ export default function Assessment({ sessionData }) {
       conv.endSession().catch(() => { })
     }
 
-    // Finalize recorder — flush in-progress chunk then stop
+    // Finalize recorder - flush in-progress chunk then stop
     if (!uploadedRef.current && mediaRecorderRef.current) {
       uploadedRef.current = true
       const recorder = mediaRecorderRef.current
@@ -580,7 +580,7 @@ export default function Assessment({ sessionData }) {
       }
     }
 
-    // Upload done (or nothing to upload) — navigate
+    // Upload done (or nothing to upload) - navigate
     sessionStorage.removeItem('interview_session')
     navigate('/session-complete')
   }
@@ -643,22 +643,22 @@ export default function Assessment({ sessionData }) {
     )
   }
 
-  // ── Session ended: continue to coding round ──────────────────────────────────
+  // ── Session ended: interview complete ────────────────────────────────────────
   if (sessionEnded) {
     return (
       <div className="min-h-screen bg-navy-950 flex items-center justify-center p-6">
         <div className="bg-white rounded-2xl shadow-card-xl max-w-md w-full p-10 text-center animate-fade-up">
-          <div className="text-5xl mb-6 select-none">💻</div>
+          <div className="text-5xl mb-6 select-none">✅</div>
           <h2 className="text-xl font-extrabold text-slate-900 mb-3">
-            Please continue with the Coding Round
+            Interview Complete
           </h2>
           <p className="text-slate-500 text-sm leading-relaxed mb-8">
-            You have 30 minutes to complete the coding questions. Click below when you're ready to begin.
+            Thank you for completing your interview. Your responses have been recorded and shared with the hiring team.
           </p>
-          <button onClick={() => navigate('/coding-round')}
+          <button onClick={() => { sessionStorage.removeItem('interview_session'); navigate('/session-complete') }}
             className="w-full py-3 rounded-xl bg-navy-800 hover:bg-navy-700 font-semibold text-sm text-white
                        transition-all flex items-center justify-center gap-2">
-            Start Coding Round <ChevronRight size={16} />
+            Finish <ChevronRight size={16} />
           </button>
         </div>
       </div>
@@ -856,7 +856,7 @@ export default function Assessment({ sessionData }) {
               {uploadError
                 ? uploadError
                 : uploadProgress === 100
-                  ? 'All done — taking you to the completion page…'
+                  ? 'All done - taking you to the completion page…'
                   : 'Please keep this window open. Your interview is being saved to our servers.'}
             </p>
           </div>

@@ -57,7 +57,7 @@ export async function validateApplication(applicationId) {
  */
 export async function getAgentSignedUrl() {
   const res = await fetch(
-    `${BACKEND_URL}/redirect/v1/convai/conversation/get_signed_url?agent_id=${AGENT_ID}`,
+    `${BACKEND_URL}/redirect/unlock/v1/convai/conversation/get_signed_url?agent_id=${AGENT_ID}`,
     {
       method: 'GET',
       headers: {
@@ -193,6 +193,20 @@ export function uploadRecordingWithProgress(applicationId, blob, onProgress) {
   })
 }
 
+// ── Coding round ─────────────────────────────────────────────────────────────
+
+export async function reportCodingViolation(applicationId) {
+  return request(`${BACKEND_URL}/recruitment/agents/technical/coding/violate/${applicationId}`, {
+    method: 'POST',
+  })
+}
+
+export async function collectCodingRound(applicationId) {
+  return request(`${BACKEND_URL}/recruitment/agents/technical/coding/collect/${applicationId}`, {
+    method: 'POST',
+  })
+}
+
 // ── Compiler ──────────────────────────────────────────────────────────────────
 
 export async function getCompilerLanguages() {
@@ -203,11 +217,11 @@ export async function getCodingQuestions(applicationId) {
   return request(`${BACKEND_URL}/recruitment/compiler/${applicationId}`)
 }
 
-export async function runCode(applicationId, { question_index, language_id, source_code }) {
+export async function runCode(applicationId, { question_index, language_id, source_code, custom_test_cases = [] }) {
   return request(`${BACKEND_URL}/recruitment/compiler/run/${applicationId}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question_index, language_id, source_code, custom_test_cases: [] }),
+    body: JSON.stringify({ question_index, language_id, source_code, custom_test_cases }),
   })
 }
 

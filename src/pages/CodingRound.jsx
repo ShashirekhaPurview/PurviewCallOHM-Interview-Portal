@@ -1,11 +1,45 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Clock, CheckCircle2, Code2, Play, Send, Loader2,
   ChevronDown, Terminal, XCircle, AlertTriangle,
-  Maximize2, Minimize2, ShieldX, MonitorX,
+  Maximize2, Minimize2, ShieldX, MonitorX, Sun, Moon,
+  LogOut,
 } from 'lucide-react'
-import { getCodingQuestions, getCompilerLanguages, runCode, submitCode } from '../apis/apiService'
+import { getCodingQuestions, getCompilerLanguages, runCode, submitCode, reportCodingViolation, collectCodingRound } from '../apis/apiService'
+import CodeMirror from '@uiw/react-codemirror'
+import { vscodeDark, vscodeLight } from '@uiw/codemirror-theme-vscode'
+import { StreamLanguage } from '@codemirror/language'
+import { python }     from '@codemirror/lang-python'
+import { javascript } from '@codemirror/lang-javascript'
+import { java }       from '@codemirror/lang-java'
+import { cpp }        from '@codemirror/lang-cpp'
+import { rust }       from '@codemirror/lang-rust'
+import { go }         from '@codemirror/lang-go'
+import { php }        from '@codemirror/lang-php'
+import { sql }        from '@codemirror/lang-sql'
+// Legacy modes for languages without official @codemirror/lang-* packages
+import { ruby }                           from '@codemirror/legacy-modes/mode/ruby'
+import { lua }                            from '@codemirror/legacy-modes/mode/lua'
+import { perl }                           from '@codemirror/legacy-modes/mode/perl'
+import { swift }                          from '@codemirror/legacy-modes/mode/swift'
+import { kotlin, scala,
+         csharp, objectiveC }             from '@codemirror/legacy-modes/mode/clike'
+import { groovy }                         from '@codemirror/legacy-modes/mode/groovy'
+import { haskell }                        from '@codemirror/legacy-modes/mode/haskell'
+import { shell }                          from '@codemirror/legacy-modes/mode/shell'
+import { r }                              from '@codemirror/legacy-modes/mode/r'
+import { erlang }                         from '@codemirror/legacy-modes/mode/erlang'
+import { clojure }                        from '@codemirror/legacy-modes/mode/clojure'
+import { oCaml }                          from '@codemirror/legacy-modes/mode/mllike'
+import { commonLisp }                     from '@codemirror/legacy-modes/mode/commonlisp'
+import { cobol }                          from '@codemirror/legacy-modes/mode/cobol'
+import { pascal }                         from '@codemirror/legacy-modes/mode/pascal'
+import { fortran }                        from '@codemirror/legacy-modes/mode/fortran'
+import { vb }                             from '@codemirror/legacy-modes/mode/vb'
+import { gas }                            from '@codemirror/legacy-modes/mode/gas'
+import { d }                              from '@codemirror/legacy-modes/mode/d'
+import { octave }                         from '@codemirror/legacy-modes/mode/octave'
 
 const DIFFICULTY = {
   easy:   'bg-green-100 text-green-700',
@@ -13,13 +47,79 @@ const DIFFICULTY = {
   hard:   'bg-red-100 text-red-700',
 }
 
+// StreamLanguage instances created once at module level (never inside a render/function call)
+const L = {
+  ruby:       StreamLanguage.define(ruby),
+  lua:        StreamLanguage.define(lua),
+  perl:       StreamLanguage.define(perl),
+  kotlin:     StreamLanguage.define(kotlin),
+  swift:      StreamLanguage.define(swift),
+  scala:      StreamLanguage.define(scala),
+  csharp:     StreamLanguage.define(csharp),
+  objectiveC: StreamLanguage.define(objectiveC),
+  groovy:     StreamLanguage.define(groovy),
+  haskell:    StreamLanguage.define(haskell),
+  shell:      StreamLanguage.define(shell),
+  r:          StreamLanguage.define(r),
+  erlang:     StreamLanguage.define(erlang),
+  clojure:    StreamLanguage.define(clojure),
+  ocaml:      StreamLanguage.define(oCaml),
+  commonlisp: StreamLanguage.define(commonLisp),
+  cobol:      StreamLanguage.define(cobol),
+  pascal:     StreamLanguage.define(pascal),
+  fortran:    StreamLanguage.define(fortran),
+  vb:         StreamLanguage.define(vb),
+  d:          StreamLanguage.define(d),
+  octave:     StreamLanguage.define(octave),
+  asm:        StreamLanguage.define(gas),
+}
+
+// Maps a Judge0 language name to its CodeMirror extension.
+// Returns [] (no highlighting) for unsupported languages - never crashes.
+function getLanguageExtension(langName) {
+  const n = (langName || '').toLowerCase()
+  if (n.startsWith('python'))                              return python()
+  if (n.startsWith('typescript'))                          return javascript({ typescript: true })
+  if (n.startsWith('javascript'))                          return javascript()
+  if (n.startsWith('java') && !n.startsWith('javascript')) return java()
+  if (n.startsWith('c++'))                                 return cpp()
+  if (n.startsWith('c#'))                                  return L.csharp
+  if (n.startsWith('c ') || n === 'c')                     return cpp()
+  if (n.startsWith('rust'))                                return rust()
+  if (n.startsWith('go ') || n === 'go')                   return go()
+  if (n.startsWith('php'))                                 return php()
+  if (n.startsWith('sql'))                                 return sql()
+  if (n.startsWith('ruby'))                                return L.ruby
+  if (n.startsWith('lua'))                                 return L.lua
+  if (n.startsWith('perl'))                                return L.perl
+  if (n.startsWith('kotlin'))                              return L.kotlin
+  if (n.startsWith('swift'))                               return L.swift
+  if (n.startsWith('scala'))                               return L.scala
+  if (n.startsWith('groovy'))                              return L.groovy
+  if (n.startsWith('haskell'))                             return L.haskell
+  if (n.startsWith('bash') || n.startsWith('shell'))       return L.shell
+  if (n.startsWith('r ') || n.startsWith('r ('))           return L.r
+  if (n.startsWith('erlang'))                              return L.erlang
+  if (n.startsWith('clojure'))                             return L.clojure
+  if (n.startsWith('ocaml'))                               return L.ocaml
+  if (n.startsWith('common lisp'))                         return L.commonlisp
+  if (n.startsWith('cobol'))                               return L.cobol
+  if (n.startsWith('pascal'))                              return L.pascal
+  if (n.startsWith('fortran'))                             return L.fortran
+  if (n.startsWith('visual basic'))                        return L.vb
+  if (n.startsWith('d ') || n === 'd')                     return L.d
+  if (n.startsWith('octave'))                              return L.octave
+  if (n.startsWith('objective'))                           return L.objectiveC
+  if (n.startsWith('assembly'))                            return L.asm
+  return []   // Elixir, Basic, Executable, F#, Multi-file, Plain Text, Prolog - no highlight, no crash
+}
+
 const MAX_VIOLATIONS    = 3
 const CODING_TIME_LIMIT = 30 * 60  // 30 minutes in seconds
-const MONITORING_ENABLED = false   // set to true to enforce fullscreen + violations
+const MONITORING_ENABLED = true   // enforce fullscreen + tab/window/second-screen violations
 
 export default function CodingRound({ sessionData }) {
   const navigate          = useNavigate()
-  const editorRef         = useRef(null)
   const containerRef      = useRef(null)
   const toastTimerRef     = useRef(null)
   const lastViolationRef  = useRef(0)
@@ -36,13 +136,26 @@ export default function CodingRound({ sessionData }) {
   const [selectedLangId, setSelectedLangId] = useState(71)
   const [codeMap, setCodeMap]               = useState({ 0: '', 1: '' })
   const [submittedMap, setSubmittedMap]     = useState({ 0: false, 1: false })
+  const [isDark, setIsDark]                 = useState(true)
   const [isRunning, setIsRunning]           = useState(false)
   const [isSubmitting, setIsSubmitting]     = useState(false)
   const [runResults, setRunResults]         = useState(null)
   const [runError, setRunError]             = useState('')
   const [submitMsg, setSubmitMsg]           = useState('')
+  const [resultMeta, setResultMeta]         = useState(null)  // { passed_count, total_count, score } on submit
   const [done, setDone]                     = useState(false)
   const [autoSubmitting, setAutoSubmitting] = useState(false)
+  const [showEndConfirm, setShowEndConfirm] = useState(false)
+  const [endingRound, setEndingRound]       = useState(false)
+  const [roundStarted, setRoundStarted]     = useState(false)
+
+  // Language extension for CodeMirror.
+  const langExtension = useMemo(() => {
+    const lang = languages.find(l => l.id === selectedLangId)
+    if (!lang) return []
+    const ext = getLanguageExtension(lang.name)
+    return Array.isArray(ext) ? ext : [ext]
+  }, [selectedLangId, languages])
 
   // ── Timer ───────────────────────────────────────────────────────────────────
   const [timeLeft, setTimeLeft] = useState(CODING_TIME_LIMIT)
@@ -70,13 +183,13 @@ export default function CodingRound({ sessionData }) {
       .finally(() => setLoading(false))
   }, [sessionData.applicationId])
 
-  // ── Once loaded: request fullscreen + start monitoring after 4s ─────────────
+  // ── Once the round starts: request fullscreen + start monitoring after 4s ────
   useEffect(() => {
-    if (loading || !MONITORING_ENABLED) return
+    if (!roundStarted || !MONITORING_ENABLED) return
     containerRef.current?.requestFullscreen?.().catch(() => {})
     const id = setTimeout(() => setMonitoringActive(true), 4000)
     return () => clearTimeout(id)
-  }, [loading])
+  }, [roundStarted])
 
   // ── Language fallback if id 71 not in list ───────────────────────────────────
   useEffect(() => {
@@ -84,44 +197,38 @@ export default function CodingRound({ sessionData }) {
     if (!languages.some(l => l.id === 71)) setSelectedLangId(languages[0].id)
   }, [languages])
 
-  // ── Countdown timer ──────────────────────────────────────────────────────────
+  // ── Countdown timer (only after the candidate starts the round) ──────────────
+  // Paused while a second screen is detected (the round is paused behind the popup).
   useEffect(() => {
-    if (loading || done || terminated || timeLeft <= 0) return
+    if (!roundStarted || done || terminated || timeLeft <= 0) return
+    if (extraScreenDetected) return
     const id = setInterval(() => setTimeLeft(prev => Math.max(0, prev - 1)), 1000)
     return () => clearInterval(id)
-  }, [loading, done, terminated, timeLeft])
+  }, [roundStarted, done, terminated, timeLeft, extraScreenDetected])
 
-  // ── Auto-submit when timer hits zero ─────────────────────────────────────────
+  // ── When timer hits zero: collect only (no auto-submit) ──────────────────────
   useEffect(() => {
     if (timeLeft !== 0 || done || terminated || loading || autoSubmittedRef.current) return
     autoSubmittedRef.current = true
 
-    const doAutoSubmit = async () => {
+    const finalizeOnTimeout = async () => {
       setAutoSubmitting(true)
-      const currentSrc  = editorRef.current?.value ?? codeMap[selectedQ]
-      const finalCodeMap = { ...codeMap, [selectedQ]: currentSrc }
-      const lang         = languages.find(l => l.id === selectedLangId)
-
-      for (let i = 0; i < questions.length; i++) {
-        if (!submittedMap[i]) {
-          try {
-            await submitCode(sessionData.applicationId, {
-              question_index: questions[i]?.index ?? i,
-              language_id:    selectedLangId,
-              language_name:  lang?.name || 'Python (3.8.1)',
-              source_code:    finalCodeMap[i] || '',
-            })
-          } catch { /* best effort */ }
-        }
-      }
+      // Only the candidate's explicitly-submitted answers count. We just collect.
+      await collectCodingRound(sessionData?.applicationId).catch(() => {})
       sessionStorage.removeItem('interview_session')
       navigate('/session-complete')
     }
-    doAutoSubmit()
+    finalizeOnTimeout()
   }, [timeLeft]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Cleanup toast timer ──────────────────────────────────────────────────────
   useEffect(() => () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current) }, [])
+
+  // ── Hit violation endpoint when session is terminated by violations ───────────
+  useEffect(() => {
+    if (!terminated || !MONITORING_ENABLED) return
+    reportCodingViolation(sessionData?.applicationId).catch(() => {})
+  }, [terminated]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Violation helper ─────────────────────────────────────────────────────────
   const raiseViolation = useCallback((type, msg) => {
@@ -144,7 +251,7 @@ export default function CodingRound({ sessionData }) {
       const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement)
       setIsFullscreen(isFS)
       if (!isFS && monitoringActive && !terminated && !done)
-        raiseViolation('fullscreen_exit', 'You exited fullscreen. Return to fullscreen to continue — this is a violation.')
+        raiseViolation('fullscreen_exit', 'You exited fullscreen. Return to fullscreen to continue - this is a violation.')
     }
     document.addEventListener('fullscreenchange', h)
     document.addEventListener('webkitfullscreenchange', h)
@@ -158,7 +265,7 @@ export default function CodingRound({ sessionData }) {
   useEffect(() => {
     const h = () => {
       if (document.hidden && monitoringActive && !terminated && !done)
-        raiseViolation('tab_switch', 'You switched away from this tab. Return immediately — this is a violation.')
+        raiseViolation('tab_switch', 'You switched away from this tab. Return immediately - this is a violation.')
     }
     document.addEventListener('visibilitychange', h)
     return () => document.removeEventListener('visibilitychange', h)
@@ -168,7 +275,7 @@ export default function CodingRound({ sessionData }) {
   useEffect(() => {
     const h = () => {
       if (monitoringActive && !terminated && !done)
-        raiseViolation('focus_loss', 'You moved away from this window. Return immediately — this is a violation.')
+        raiseViolation('focus_loss', 'You moved away from this window. Return immediately - this is a violation.')
     }
     window.addEventListener('blur', h)
     return () => window.removeEventListener('blur', h)
@@ -178,7 +285,7 @@ export default function CodingRound({ sessionData }) {
     if (!monitoringActive || terminated || done) return
     const id = setInterval(() => {
       if (!document.hasFocus() && !terminated && !done)
-        raiseViolation('focus_loss', 'You moved away from this window. Return immediately — this is a violation.')
+        raiseViolation('focus_loss', 'You moved away from this window. Return immediately - this is a violation.')
     }, 1000)
     return () => clearInterval(id)
   }, [raiseViolation, monitoringActive, terminated, done])
@@ -244,9 +351,11 @@ export default function CodingRound({ sessionData }) {
   const currentLang    = languages.find(l => l.id === selectedLangId)
   const submittedCount = Object.values(submittedMap).filter(Boolean).length
   const isLow          = timeLeft <= 5 * 60 && timeLeft > 0
+  const progressPercent = questions.length
+    ? Math.min(100, Math.round((submittedCount / questions.length) * 100))
+    : 0
 
   const switchQuestion = (i) => {
-    if (editorRef.current) setCodeMap(prev => ({ ...prev, [selectedQ]: editorRef.current.value }))
     setSelectedQ(i)
     setRunResults(null)
     setRunError('')
@@ -254,10 +363,10 @@ export default function CodingRound({ sessionData }) {
   }
 
   const handleRun = async () => {
-    const src = editorRef.current?.value ?? codeMap[selectedQ]
-    setCodeMap(prev => ({ ...prev, [selectedQ]: src }))
+    const src = codeMap[selectedQ]
     setIsRunning(true)
     setRunResults(null)
+    setResultMeta(null)
     setRunError('')
     setSubmitMsg('')
     try {
@@ -276,28 +385,56 @@ export default function CodingRound({ sessionData }) {
   }
 
   const handleSubmit = async () => {
-    if (submittedMap[selectedQ]) return
-    const src = editorRef.current?.value ?? codeMap[selectedQ]
-    setCodeMap(prev => ({ ...prev, [selectedQ]: src }))
+    const src = codeMap[selectedQ]
     setIsSubmitting(true)
+    setRunResults(null)
+    setResultMeta(null)
     setRunError('')
     setSubmitMsg('')
     try {
-      await submitCode(sessionData.applicationId, {
+      const res = await submitCode(sessionData.applicationId, {
         question_index: questions[selectedQ]?.index ?? selectedQ,
         language_id:    selectedLangId,
         language_name:  currentLang?.name || 'Python (3.8.1)',
         source_code:    src,
       })
-      const updated = { ...submittedMap, [selectedQ]: true }
-      setSubmittedMap(updated)
+      // Show the full submission results (incl. hidden tests + score)
+      const items = Array.isArray(res) ? res : (res?.test_results ?? res?.results ?? null)
+      setRunResults(items)
+      if (res && (res.total_count != null || res.score != null)) {
+        setResultMeta({
+          passed_count: res.passed_count,
+          total_count:  res.total_count,
+          score:        res.score,
+          submitted:    true,
+        })
+      }
+      // Mark as submitted for progress tracking. The candidate can re-submit any
+      // number of times - the round only ends on the timer or the End Round button.
+      setSubmittedMap(prev => ({ ...prev, [selectedQ]: true }))
       setSubmitMsg('Solution submitted successfully!')
-      if (Object.values(updated).every(Boolean)) setTimeout(() => setDone(true), 1000)
     } catch (err) {
       setRunError(err.message || 'Submission failed. Please try again.')
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  const handleEndRound = async () => {
+    if (endingRound) return
+    setEndingRound(true)
+    setRunError('')
+    setSubmitMsg('')
+
+    // Only collect - we never auto-submit. Whatever the candidate explicitly
+    // submitted is what counts.
+    await collectCodingRound(sessionData?.applicationId).catch(() => {})
+    sessionStorage.removeItem('interview_session')
+    navigate('/session-complete')
+  }
+
+  const handleStartRound = () => {
+    setRoundStarted(true)
   }
 
   const handleFinish = () => {
@@ -364,6 +501,63 @@ export default function CodingRound({ sessionData }) {
               support@purviewcallohm.com
             </a>
           </p>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Instructions screen (before the candidate starts the round) ──────────────
+  if (!roundStarted) {
+    const minutes = Math.round(CODING_TIME_LIMIT / 60)
+    const rules = [
+      { icon: Code2,        text: `This round has ${questions.length} coding question${questions.length !== 1 ? 's' : ''}. You can switch between them anytime.` },
+      { icon: Clock,        text: `You have ${minutes} minutes. The timer starts as soon as you click "Start Coding Round" and cannot be paused.` },
+      { icon: Play,         text: `Use "Run Code" to test your solution against the sample test cases before submitting.` },
+      { icon: Send,         text: `Click "Submit" to submit a question. You can re-submit as many times as you like to improve your score - only your latest submission counts.` },
+      { icon: CheckCircle2, text: `Only submitted answers are evaluated. Code left in the editor without submitting will not be saved or scored.` },
+      { icon: LogOut,       text: `When the timer ends, or when you click "End Round", the coding round is finalized automatically.` },
+    ]
+    return (
+      <div className="min-h-screen bg-navy-950 flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl shadow-card-xl max-w-xl w-full p-8 sm:p-10 animate-fade-up border border-slate-100">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center">
+              <Code2 size={22} className="text-blue-600" />
+            </div>
+            <div>
+              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Coding Round</h1>
+              <p className="text-xs text-slate-500">Please read the instructions before you begin.</p>
+            </div>
+          </div>
+
+          <div className="h-px bg-slate-100 mb-6" />
+
+          <ul className="space-y-3.5 mb-8">
+            {rules.map(({ icon: Icon, text }, i) => (
+              <li key={i} className="flex gap-3">
+                <span className="mt-0.5 w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                  <Icon size={14} className="text-slate-500" />
+                </span>
+                <p className="text-sm text-slate-600 leading-relaxed">{text}</p>
+              </li>
+            ))}
+          </ul>
+
+          <div className="rounded-xl bg-amber-50 border border-amber-200 p-3.5 mb-7 flex gap-2.5">
+            <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-800 leading-relaxed">
+              Remember to <span className="font-bold">Submit</span> each answer before the timer ends. Anything not submitted will not be counted.
+            </p>
+          </div>
+
+          <button
+            onClick={handleStartRound}
+            className="w-full py-3.5 rounded-xl bg-navy-800 hover:bg-navy-700 text-white font-semibold text-sm
+                       transition-all flex items-center justify-center gap-2 hover:shadow-navy hover:-translate-y-0.5
+                       active:translate-y-0 active:shadow-none">
+            Start Coding Round
+            <Clock size={16} />
+          </button>
         </div>
       </div>
     )
@@ -438,12 +632,56 @@ export default function CodingRound({ sessionData }) {
           <Loader2 size={32} className="text-blue-400 animate-spin" />
           <div className="text-center">
             <h2 className="text-white text-xl font-extrabold mb-2">Time's Up!</h2>
-            <p className="text-white/60 text-sm">Submitting your solutions automatically…</p>
+            <p className="text-white/60 text-sm">Finalizing your coding round…</p>
           </div>
         </div>
       )}
 
       {/* ── Violation Toast ──────────────────────────────────────────────────── */}
+      {showEndConfirm && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-6">
+          <div className="bg-white rounded-2xl shadow-card-xl max-w-md w-full p-6 border border-slate-100">
+            <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center mb-4">
+              <AlertTriangle size={24} className="text-amber-600" />
+            </div>
+            <h2 className="text-xl font-extrabold text-slate-900 mb-2">End Coding Round?</h2>
+            <p className="text-sm text-slate-500 leading-relaxed mb-5">
+              Only the answers you have submitted will be counted. Anything not submitted will not be saved.
+              This cannot be undone.
+            </p>
+            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 mb-5">
+              <div className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-2">
+                <span>Progress</span>
+                <span>{submittedCount}/{questions.length} submitted</span>
+              </div>
+              <div className="h-2 rounded-full bg-slate-200 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-blue-600 transition-all duration-300"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowEndConfirm(false)}
+                disabled={endingRound}
+                className="px-4 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleEndRound}
+                disabled={endingRound}
+                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-sm font-semibold text-white disabled:opacity-60 disabled:cursor-wait transition-colors flex items-center gap-2">
+                {endingRound ? <Loader2 size={14} className="animate-spin" /> : <LogOut size={14} />}
+                {endingRound ? 'Ending...' : 'End Round'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showViolation && (
         <div className="fixed top-20 right-4 z-50 animate-slide-right">
           <div className="flex items-start gap-3 bg-white rounded-xl shadow-card-xl border-l-4 border-orange-400 p-4 max-w-sm">
@@ -452,7 +690,7 @@ export default function CodingRound({ sessionData }) {
               <p className="text-sm font-semibold text-slate-800">Violation Detected</p>
               <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{showViolation.msg}</p>
               <p className="text-xs font-semibold text-orange-600 mt-1.5">
-                {violations}/{MAX_VIOLATIONS} warnings — session ends at {MAX_VIOLATIONS}
+                {violations}/{MAX_VIOLATIONS} warnings - session ends at {MAX_VIOLATIONS}
               </p>
             </div>
           </div>
@@ -510,6 +748,15 @@ export default function CodingRound({ sessionData }) {
             className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors">
             {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
           </button>
+
+          <button
+            type="button"
+            onClick={() => setShowEndConfirm(true)}
+            disabled={endingRound}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 text-xs font-bold transition-colors disabled:opacity-60">
+            {endingRound ? <Loader2 size={13} className="animate-spin" /> : <LogOut size={13} />}
+            End Round
+          </button>
         </div>
       </header>
 
@@ -522,8 +769,8 @@ export default function CodingRound({ sessionData }) {
           : <Clock size={12} className="text-blue-400 flex-shrink-0" />}
         <span className={`text-xs font-medium ${isLow ? 'text-red-600 font-bold' : 'text-blue-600'}`}>
           {isLow
-            ? `⚠ Only ${formatCountdown(timeLeft)} remaining — all answers will be auto-submitted when the timer ends!`
-            : `You have ${formatCountdown(timeLeft)} remaining. All answers will be auto-submitted when the timer ends.`}
+            ? `⚠ Only ${formatCountdown(timeLeft)} remaining - make sure you submit your answers before the timer ends!`
+            : `You have ${formatCountdown(timeLeft)} remaining. Submit each answer before the timer ends - unsubmitted code is not saved.`}
         </span>
       </div>
 
@@ -531,25 +778,42 @@ export default function CodingRound({ sessionData }) {
       <div className="flex-1 flex overflow-hidden">
 
         {/* ── Left panel: Questions + Detail ──────────────────────────────── */}
-        <aside className="w-80 flex-shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-hidden">
+        <aside className="w-[24rem] flex-shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-hidden">
+
+          <div className="px-4 py-3 border-b border-slate-100 bg-white flex-shrink-0">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Code2 size={14} className="text-blue-600" />
+                <span className="text-sm font-extrabold text-slate-900">Problems</span>
+              </div>
+              <span className="text-[11px] font-bold text-slate-500">{submittedCount}/{questions.length}</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-blue-600 transition-all duration-300"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+          </div>
 
           {/* Question cards */}
-          <div className="p-4 border-b border-slate-100 flex-shrink-0">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Questions</p>
+          <div className="p-3 border-b border-slate-100 flex-shrink-0 bg-slate-50/70">
             <div className="space-y-2">
               {questions.map((q, i) => (
                 <button key={q.index ?? i} onClick={() => switchQuestion(i)}
-                  className={`w-full text-left p-3 rounded-xl border transition-all duration-150 ${
+                  className={`w-full text-left p-3 rounded-lg border bg-white transition-all duration-150 ${
                     selectedQ === i
-                      ? 'border-blue-300 bg-blue-50'
-                      : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                      ? 'border-blue-400 shadow-sm ring-1 ring-blue-100'
+                      : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'
                   }`}>
                   <div className="flex items-start gap-2 justify-between">
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className={`text-xs font-bold flex-shrink-0 ${selectedQ === i ? 'text-blue-600' : 'text-slate-400'}`}>
+                      <span className={`h-7 w-7 rounded-lg flex items-center justify-center text-xs font-extrabold flex-shrink-0 ${
+                        selectedQ === i ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'
+                      }`}>
                         Q{i + 1}
                       </span>
-                      <p className="text-sm font-semibold text-slate-800 leading-tight truncate">{q.title}</p>
+                      <p className="text-sm font-bold text-slate-800 leading-tight truncate">{q.title}</p>
                     </div>
                     {q.difficulty && (
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 capitalize
@@ -566,7 +830,7 @@ export default function CodingRound({ sessionData }) {
                     </div>
                   )}
                   {submittedMap[i] && (
-                    <div className="flex items-center gap-1 mt-1.5">
+                    <div className="inline-flex items-center gap-1 mt-2 rounded-full bg-green-50 border border-green-200 px-2 py-0.5">
                       <CheckCircle2 size={11} className="text-green-500" />
                       <span className="text-[11px] font-semibold text-green-600">Submitted</span>
                     </div>
@@ -576,22 +840,33 @@ export default function CodingRound({ sessionData }) {
             </div>
           </div>
 
-          {/* Question detail */}
+          {/* Question detail + test cases (single scrolling panel) */}
           {currentQ && (
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              <div>
-                <h2 className="text-sm font-extrabold text-slate-900 mb-1.5">{currentQ.title}</h2>
-                <p className="text-xs text-slate-500 leading-relaxed whitespace-pre-wrap">{currentQ.description}</p>
+            <div className="flex-1 overflow-y-auto p-4 space-y-5 bg-white">
+              <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <span className="text-[11px] font-extrabold text-blue-600 uppercase tracking-wider">
+                    Question {selectedQ + 1}
+                  </span>
+                  {currentQ.difficulty && (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize
+                                     ${DIFFICULTY[currentQ.difficulty] || 'bg-slate-100 text-slate-600'}`}>
+                      {currentQ.difficulty}
+                    </span>
+                  )}
+                </div>
+                <h2 className="text-base font-extrabold text-slate-900 leading-snug mb-2">{currentQ.title}</h2>
+                <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{currentQ.description}</p>
               </div>
 
               {currentQ.constraints?.length > 0 && (
-                <div>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Constraints</p>
-                  <ul className="space-y-1">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-2">Constraints</p>
+                  <ul className="space-y-1.5">
                     {currentQ.constraints.map((c, i) => (
-                      <li key={i} className="flex gap-2 text-xs text-slate-500">
+                      <li key={i} className="flex gap-2 text-xs text-slate-600 leading-relaxed">
                         <span className="text-slate-300 flex-shrink-0">•</span>
-                        <code className="font-mono">{c}</code>
+                        <code className="font-mono break-words">{c}</code>
                       </li>
                     ))}
                   </ul>
@@ -600,21 +875,31 @@ export default function CodingRound({ sessionData }) {
 
               {visibleTests.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Examples</p>
-                  <div className="space-y-2">
+                  <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-2">
+                    Sample Test Cases
+                  </p>
+                  <div className="space-y-3">
                     {visibleTests.map((tc, i) => (
-                      <div key={i} className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs space-y-1.5">
-                        <div className="flex items-start gap-2">
-                          <span className="text-slate-400 w-14 flex-shrink-0">Input:</span>
-                          <code className="font-mono text-slate-700 bg-white border border-slate-200 px-1.5 rounded break-all">{tc.stdin}</code>
+                      <div key={i} className="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
+                        <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-100 bg-slate-50">
+                          <span className="h-5 w-5 rounded-md bg-blue-600 text-white text-[10px] font-extrabold flex items-center justify-center">
+                            {i + 1}
+                          </span>
+                          <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Case {i + 1}</span>
                         </div>
-                        <div className="flex items-start gap-2">
-                          <span className="text-slate-400 w-14 flex-shrink-0">Output:</span>
-                          <code className="font-mono text-slate-700 bg-white border border-slate-200 px-1.5 rounded break-all">{tc.expected_output}</code>
+                        <div className="p-3 space-y-2 text-xs">
+                          <div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Input</p>
+                            <code className="block font-mono text-slate-700 bg-slate-50 border border-slate-200 px-2 py-1.5 rounded break-all whitespace-pre-wrap">{tc.stdin}</code>
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Expected Output</p>
+                            <code className="block font-mono text-slate-700 bg-slate-50 border border-slate-200 px-2 py-1.5 rounded break-all whitespace-pre-wrap">{tc.expected_output}</code>
+                          </div>
+                          {tc.explanation && (
+                            <p className="text-slate-400 italic leading-snug pt-0.5">{tc.explanation}</p>
+                          )}
                         </div>
-                        {tc.explanation && (
-                          <p className="text-slate-400 italic leading-snug pt-0.5">{tc.explanation}</p>
-                        )}
                       </div>
                     ))}
                   </div>
@@ -644,57 +929,65 @@ export default function CodingRound({ sessionData }) {
             </div>
 
             <div className="flex items-center gap-2">
+              {/* Theme toggle */}
+              <button
+                onClick={() => setIsDark(d => !d)}
+                title={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+                className="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 flex items-center justify-center text-slate-300 transition-colors">
+                {isDark ? <Sun size={13} /> : <Moon size={13} />}
+              </button>
+
               <button onClick={handleRun} disabled={isRunning}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500
                            text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-wait">
                 {isRunning ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
                 {isRunning ? 'Running…' : 'Run Code'}
               </button>
-              <button onClick={handleSubmit} disabled={isSubmitting || submittedMap[selectedQ]}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-semibold
-                            transition-colors disabled:opacity-60 disabled:cursor-not-allowed
-                            ${submittedMap[selectedQ] ? 'bg-green-700' : 'bg-blue-600 hover:bg-blue-500'}`}>
+              <button onClick={handleSubmit} disabled={isSubmitting}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-semibold
+                           transition-colors disabled:opacity-60 disabled:cursor-wait
+                           bg-blue-600 hover:bg-blue-500">
                 {isSubmitting
                   ? <><Loader2 size={12} className="animate-spin" /> Submitting…</>
                   : submittedMap[selectedQ]
-                    ? <><CheckCircle2 size={12} /> Submitted</>
+                    ? <><Send size={12} /> Re-submit</>
                     : <><Send size={12} /> Submit</>}
               </button>
             </div>
           </div>
 
-          {/* Code editor */}
-          <div className="flex-1 overflow-hidden min-h-0 bg-[#1e1e1e]">
-            <textarea
+          {/* Code editor - CodeMirror 6 with VS Code theme + per-language syntax highlighting */}
+          <div className="flex-1 overflow-hidden min-h-0" style={{ display: 'flex', flexDirection: 'column' }}>
+            <CodeMirror
               key={selectedQ}
-              ref={editorRef}
-              defaultValue={codeMap[selectedQ]}
-              onChange={e => setCodeMap(prev => ({ ...prev, [selectedQ]: e.target.value }))}
-              onKeyDown={e => {
-                if (e.key !== 'Tab') return
-                e.preventDefault()
-                const el = e.target, start = el.selectionStart
-                el.value = el.value.substring(0, start) + '    ' + el.value.substring(el.selectionEnd)
-                el.selectionStart = el.selectionEnd = start + 4
-                setCodeMap(prev => ({ ...prev, [selectedQ]: el.value }))
+              value={codeMap[selectedQ]}
+              height="100%"
+              theme={isDark ? vscodeDark : vscodeLight}
+              extensions={langExtension}
+              onChange={val => setCodeMap(prev => ({ ...prev, [selectedQ]: val }))}
+              basicSetup={{
+                lineNumbers:          true,
+                highlightActiveLine:  true,
+                highlightActiveLineGutter: true,
+                indentOnInput:        true,
+                bracketMatching:      true,
+                closeBrackets:        true,
+                autocompletion:       false,
+                tabSize:              4,
+                foldGutter:           true,
               }}
-              spellCheck={false}
-              autoCapitalize="off"
-              autoComplete="off"
-              autoCorrect="off"
-              placeholder="# Write your solution here..."
-              className="w-full h-full bg-[#1e1e1e] text-[#d4d4d4] font-mono text-sm leading-relaxed
-                         p-5 resize-none outline-none border-none placeholder-[#4a5568] block"
+              style={{ height: '100%', fontSize: '14px', flex: 1 }}
             />
           </div>
 
           {/* Output panel */}
-          <div className="flex-shrink-0 h-44 bg-[#1a1a2e] border-t border-slate-700 flex flex-col overflow-hidden">
+          <div className="flex-shrink-0 h-48 bg-[#1a1a2e] border-t border-slate-700 flex flex-col overflow-hidden">
             <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-700/60 bg-[#16213e] flex-shrink-0">
               <Terminal size={12} className="text-slate-400" />
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Output</span>
               {(runResults || runError || submitMsg) && (
-                <button onClick={() => { setRunResults(null); setRunError(''); setSubmitMsg('') }}
+                <button onClick={() => { setRunResults(null); setResultMeta(null); setRunError(''); setSubmitMsg('') }}
+                  title="Clear output"
                   className="ml-auto text-slate-500 hover:text-slate-300 transition-colors">
                   <XCircle size={12} />
                 </button>
@@ -717,41 +1010,112 @@ export default function CodingRound({ sessionData }) {
                   <span>{runError}</span>
                 </div>
               )}
-              {submitMsg && (
+              {submitMsg && !resultMeta && (
                 <div className="flex items-center gap-2 text-xs text-green-400 font-semibold">
                   <CheckCircle2 size={12} />{submitMsg}
                 </div>
               )}
               {runResults && !isRunning && (
                 Array.isArray(runResults)
-                  ? runResults.map((r, i) => {
-                      const passed = r.status === 'Accepted' || r.passed === true
-                        || (r.stdout?.trim() !== undefined && r.stdout?.trim() === r.expected_output?.trim())
+                  ? (() => {
+                      const passedCount = resultMeta?.passed_count ?? runResults.filter(r => r.passed === true).length
+                      const total       = resultMeta?.total_count  ?? runResults.length
+                      const allPassed   = total > 0 && passedCount === total
+                      const isSubmit    = !!resultMeta
                       return (
-                        <div key={i}
-                          className={`rounded-lg p-2.5 text-[11px] space-y-1.5 ${
-                            passed
-                              ? 'bg-green-900/30 border border-green-700/30'
-                              : 'bg-red-900/30 border border-red-700/30'
-                          }`}>
-                          <div className="flex items-center gap-1.5 font-semibold">
-                            {passed
-                              ? <CheckCircle2 size={11} className="text-green-400" />
-                              : <XCircle size={11} className="text-red-400" />}
-                            <span className={passed ? 'text-green-400' : 'text-red-400'}>
-                              Test {i + 1} — {r.status || (passed ? 'Passed' : 'Failed')}
-                            </span>
-                            {r.time && <span className="text-slate-500 ml-auto font-normal">{r.time}s</span>}
-                          </div>
-                          <div className="font-mono text-[10px] text-slate-400 space-y-0.5">
-                            {r.stdin        != null && <div><span className="text-slate-500">in:  </span><span className="text-slate-300">{r.stdin}</span></div>}
-                            {r.expected_output != null && <div><span className="text-slate-500">exp: </span><span className="text-slate-300">{r.expected_output}</span></div>}
-                            {r.stdout       != null && <div><span className="text-slate-500">got: </span><span className={passed ? 'text-green-300' : 'text-red-300'}>{r.stdout || '(empty)'}</span></div>}
-                            {r.stderr                && <div><span className="text-slate-500">err: </span><span className="text-red-400">{r.stderr}</span></div>}
-                          </div>
-                        </div>
+                        <>
+                          {/* Summary */}
+                          {isSubmit ? (
+                            <div className={`rounded-lg p-3 mb-2 border ${
+                              allPassed
+                                ? 'bg-green-900/30 border-green-700/40'
+                                : passedCount > 0
+                                  ? 'bg-amber-900/20 border-amber-700/40'
+                                  : 'bg-red-900/30 border-red-700/40'
+                            }`}>
+                              <div className="flex items-center justify-between mb-1.5">
+                                <span className="flex items-center gap-1.5 text-xs font-extrabold text-slate-100">
+                                  {allPassed
+                                    ? <CheckCircle2 size={14} className="text-green-400" />
+                                    : <AlertTriangle size={14} className="text-amber-400" />}
+                                  Submission Result
+                                </span>
+                                {resultMeta?.score != null && (
+                                  <span className="text-xs font-bold text-slate-200">
+                                    Score: {resultMeta.score}/{total}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 h-2 rounded-full bg-slate-700 overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all duration-500 ${allPassed ? 'bg-green-500' : passedCount > 0 ? 'bg-amber-500' : 'bg-red-500'}`}
+                                    style={{ width: `${total ? (passedCount / total) * 100 : 0}%` }}
+                                  />
+                                </div>
+                                <span className="text-[11px] font-bold text-slate-300">
+                                  {passedCount}/{total} passed
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className={`flex items-center gap-2 text-xs font-bold mb-1.5 ${allPassed ? 'text-green-400' : 'text-amber-400'}`}>
+                              {allPassed
+                                ? <CheckCircle2 size={13} />
+                                : <AlertTriangle size={13} />}
+                              {passedCount}/{total} test case{total !== 1 ? 's' : ''} passed
+                            </div>
+                          )}
+
+                          {runResults.map((r, i) => {
+                            const idx          = r.index ?? i
+                            const isHidden     = r.visible === false
+                            const tc           = currentQ?.test_cases?.[idx]
+                            const stdin        = r.stdin ?? tc?.stdin
+                            const expected     = r.expected_output ?? tc?.expected_output
+                            const actualOutput = r.actual_output ?? r.stdout
+                            const hasExpected  = expected != null && String(expected).trim() !== ''
+                            const compileErr   = r.compile_output?.trim()
+                            const stderr       = r.stderr?.trim()
+                            // Pass/fail is driven ONLY by the backend `passed` flag.
+                            // `status: "Accepted"` just means the code ran without a crash.
+                            const passed       = r.passed === true
+                            const errored      = !passed && (!!compileErr || !!stderr)
+                            const label        = passed ? 'Passed' : errored ? (r.status || 'Error') : 'Failed'
+                            return (
+                              <div key={i}
+                                className={`rounded-lg p-2.5 text-[11px] space-y-1.5 ${
+                                  passed
+                                    ? 'bg-green-900/30 border border-green-700/30'
+                                    : 'bg-red-900/30 border border-red-700/30'
+                                }`}>
+                                <div className="flex items-center gap-1.5 font-semibold">
+                                  {passed
+                                    ? <CheckCircle2 size={11} className="text-green-400" />
+                                    : <XCircle size={11} className="text-red-400" />}
+                                  <span className={passed ? 'text-green-400' : 'text-red-400'}>
+                                    {isHidden ? `Hidden Test ${i + 1}` : `Test ${i + 1}`} - {label}
+                                  </span>
+                                  {r.time   && <span className="text-slate-500 ml-auto font-normal">{r.time}s</span>}
+                                  {r.memory && <span className="text-slate-600 font-normal">{Math.round(r.memory / 1024)}MB</span>}
+                                </div>
+                                {isHidden ? (
+                                  <p className="text-[10px] text-slate-500 italic">Hidden test case - details not shown.</p>
+                                ) : (
+                                  <div className="font-mono text-[10px] text-slate-400 space-y-0.5">
+                                    {stdin        != null && <div><span className="text-slate-500">in:  </span><span className="text-slate-300">{stdin}</span></div>}
+                                    {hasExpected          && <div><span className="text-slate-500">exp: </span><span className="text-slate-300">{expected}</span></div>}
+                                    {actualOutput != null && <div><span className="text-slate-500">got: </span><span className={passed ? 'text-green-300' : 'text-red-300'}>{actualOutput || '(empty)'}</span></div>}
+                                    {stderr               && <div><span className="text-slate-500">err: </span><span className="text-red-400 whitespace-pre-wrap">{stderr}</span></div>}
+                                    {compileErr           && <div><span className="text-slate-500">compile: </span><span className="text-orange-400 whitespace-pre-wrap">{compileErr}</span></div>}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </>
                       )
-                    })
+                    })()
                   : (
                     <pre className="text-[11px] text-slate-300 whitespace-pre-wrap font-mono">
                       {JSON.stringify(runResults, null, 2)}

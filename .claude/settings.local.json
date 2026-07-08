@@ -6,7 +6,15 @@
       "Bash(Remove-Item -Path \"c:\\\\Users\\\\Shashirekha\\\\Desktop\\\\My Projects\\\\purview-callohm-interview-portal\\\\src\\\\screenRecordingState.js\" -Force)",
       "Bash(Start-Sleep -Seconds 3)",
       "Bash(Get-Content \"C:\\\\Users\\\\SHASHI~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-Shashirekha-Desktop-My-Projects-purview-callohm-interview-portal\\\\d9ac3add-8ff9-41e5-897f-adb4602927ff\\\\tasks\\\\bxecuhwfp.output\")",
-      "Bash(Select-Object -Last 20)"
+      "Bash(Select-Object -Last 20)",
+      "Bash(node -e \"const m = require\\('./node_modules/@codemirror/legacy-modes/mode/clike.js'\\); console.log\\(Object.keys\\(m\\).filter\\(k => ['kotlin','scala','swift'].includes\\(k.toLowerCase\\(\\)\\)\\)\\)\")",
+      "Bash(node -e \"import\\('./node_modules/@codemirror/legacy-modes/mode/clike.js'\\).then\\(m => console.log\\(Object.keys\\(m\\)\\)\\)\")",
+      "PowerShell(Get-Job)",
+      "PowerShell(Stop-Job)",
+      "PowerShell(Remove-Job)",
+      "Bash(ls -la \"C:\\\\Users\\\\Shashirekha\\\\Desktop\\\\My Projects\\\\CallOHM-Recruitment\\\\\")",
+      "Read(//c/Users/Shashirekha/Desktop/My Projects/**)",
+      "Read(//c/Users/Shashirekha/Desktop/My Projects/purview-callohm-Interview-portal/src/pages/**)"
     ]
   }
 }
