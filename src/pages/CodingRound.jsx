@@ -763,7 +763,9 @@ export default function CodingRound({ sessionData }) {
       <header className="flex-shrink-0 bg-white border-b border-slate-200 px-5 py-3
                          flex items-center justify-between z-10 shadow-sm">
         <div className="flex items-center gap-3">
-          <img src="/callohm-logo.png" alt="Callohm" className="h-7 w-auto object-contain" />
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#052e1b] p-1 shadow-card">
+            <img src="/website_logos/rabbit_logo_without_bg.png" alt="Callohm" className="h-full w-full object-contain" />
+          </span>
           <div className="h-4 w-px bg-slate-200" />
           <div className="flex items-center gap-1.5">
             <Code2 size={14} className="text-blue-600" />

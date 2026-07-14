@@ -47,6 +47,37 @@ export async function validateApplication(applicationId) {
   })
 }
 
+/**
+ * Uploads the candidate's identity images (govt ID + live photo).
+ * POST /recruitment/identity/{applicationId}   (multipart/form-data)
+ *
+ * @param {string} applicationId
+ * @param {Blob}   photoBlob   - Live candidate photo (JPEG)
+ * @param {Blob}   govtIdBlob  - Live govt ID photo (JPEG)
+ */
+export async function uploadIdentity(applicationId, photoBlob, govtIdBlob) {
+  const formData = new FormData()
+  formData.append('govt_id', govtIdBlob, `${applicationId}_govt_id.jpg`)
+  formData.append('photo', photoBlob, `${applicationId}_photo.jpg`)
+
+  const res = await fetch(`${BACKEND_URL}/recruitment/identity/${applicationId}`, {
+    method: 'POST',
+    headers: {
+      'accept': 'application/json',
+      'xi-api-key': XI_API_KEY,
+      'ngrok-skip-browser-warning': 'true',
+    },
+    body: formData,
+  })
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail || body.message || `Identity upload failed with status ${res.status}`)
+  }
+
+  return res.json()
+}
+
 // ── Agent ─────────────────────────────────────────────────────────────────────
 
 /**

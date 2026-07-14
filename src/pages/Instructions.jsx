@@ -317,7 +317,18 @@ export default function Instructions({ sessionData, onStart }) {
 
   const handleStartAssessment = async () => {
     setStarting(true)
-    await new Promise(r => setTimeout(r, 600))
+    // Enter fullscreen synchronously within this click gesture so it carries
+    // into the assessment (SPA navigation keeps the fullscreen element alive).
+    try {
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        const req =
+          document.documentElement.requestFullscreen ||
+          document.documentElement.webkitRequestFullscreen ||
+          document.documentElement.mozRequestFullScreen
+        await req?.call(document.documentElement)
+      }
+    } catch { /* ignore - assessment page will retry */ }
+    await new Promise(r => setTimeout(r, 400))
     onStart({ ...sessionData, started: true })
     navigate('/assessment')
   }
@@ -340,7 +351,9 @@ export default function Instructions({ sessionData, onStart }) {
       <header className="sticky top-0 z-30 bg-white border-b border-slate-100 shadow-card">
         <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/callohm-logo.png" alt="Callohm" className="h-8 w-auto object-contain" />
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#052e1b] p-1 shadow-card">
+              <img src="/website_logos/rabbit_logo_without_bg.png" alt="Callohm" className="h-full w-full object-contain" />
+            </span>
             <span className="hidden sm:inline text-slate-300">|</span>
             <span className="hidden sm:inline text-xs text-slate-500 font-medium">
               AI Interview Portal

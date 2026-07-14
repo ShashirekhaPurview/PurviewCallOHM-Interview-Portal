@@ -412,6 +412,33 @@ export default function Assessment({ sessionData }) {
     return () => { document.removeEventListener('fullscreenchange', h); document.removeEventListener('webkitfullscreenchange', h) }
   }, [agentLoaded, sessionEnded, terminated, raiseViolation])
 
+  // ── Always enter fullscreen when the technical round opens ──────────────────
+  // Runs regardless of whether fullscreen was granted/kept on the previous page.
+  // Also re-arms on the candidate's first interaction so a blocked auto-request
+  // (no user activation after navigation) still puts the interview fullscreen.
+  useEffect(() => {
+    const enterFullscreen = () => {
+      const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement)
+      if (isFS) return
+      const el = containerRef.current || document.documentElement
+      const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen
+      try { req?.call(el)?.catch?.(() => {}) } catch { /* ignore */ }
+    }
+
+    enterFullscreen()
+    const t = setTimeout(enterFullscreen, 400)
+
+    const onFirstInteraction = () => enterFullscreen()
+    window.addEventListener('pointerdown', onFirstInteraction)
+    window.addEventListener('keydown', onFirstInteraction)
+
+    return () => {
+      clearTimeout(t)
+      window.removeEventListener('pointerdown', onFirstInteraction)
+      window.removeEventListener('keydown', onFirstInteraction)
+    }
+  }, [])
+
   useEffect(() => {
     const block = e => e.preventDefault()
     const blockKeys = e => {
@@ -709,7 +736,9 @@ export default function Assessment({ sessionData }) {
                          px-5 py-2.5 bg-black/80 backdrop-blur-sm border-b border-white/10 z-30">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <img src="/callohm-logo.png" alt="Callohm" className="h-7 w-auto object-contain" />
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#052e1b] p-1 ring-1 ring-white/15">
+              <img src="/website_logos/rabbit_logo_without_bg.png" alt="Callohm" className="h-full w-full object-contain" />
+            </span>
           </div>
           <div className="h-4 w-px bg-white/15 hidden sm:block" />
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500/15 border border-red-400/25">
